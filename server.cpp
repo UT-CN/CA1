@@ -167,7 +167,7 @@ vector<string> seperate_to_vector(char comm[]){
     for(int i=0; i< int(strlen(comm)); i++){
         if(comm[i]!=' '){
             temp+=comm[i];
-            if(i==(unsigned)strlen(comm)-2)
+            if(i==(int)strlen(comm)-2)
                 command.push_back(temp);
         }
         else{
@@ -180,7 +180,7 @@ vector<string> seperate_to_vector(char comm[]){
 }
 
 bool check_username(string username,int fd){
-    for(int i=0;i<Clients.size();i++){
+    for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].Username==username){
             username_storage[fd]=username;
             return true;
@@ -189,7 +189,7 @@ bool check_username(string username,int fd){
     return false;
 }
 bool check_password(string password,int fd,string username){
-    for(int i=0;i<Clients.size();i++){
+    for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].Username==username && Clients[i].Password==password){
             Clients[i].set_fd(fd);
             Clients[i].loged_in();
@@ -200,7 +200,7 @@ bool check_password(string password,int fd,string username){
 
 }
 bool is_loged_in(int fd){
-    for(int i=0;i<Clients.size();i++){
+    for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].Fd_id==fd && Clients[i].IslogedIn)
             return true;
     }
@@ -255,6 +255,7 @@ int main(int argc, char const *argv[]) {
     FD_SET(server_fd, &master_set);
 
     write(1, "Server is running\n", 18);
+    char buff[1024]={0};
     while (1) {
         working_set = master_set;
         select(max_sd + 1, &working_set, NULL, NULL, NULL);

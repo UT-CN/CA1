@@ -14,7 +14,7 @@ client.out: client.cpp
 server.o: server.cpp
 	$(CC) $(CFLAGS) -c server.cpp
 
-jsoncpp.o: jsoncpp
+jsoncpp.o: jsoncpp/*
 	$(CC) $(CFLAGS) -c jsoncpp/dist/jsoncpp.cpp
 
 clean:
