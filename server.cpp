@@ -7,17 +7,26 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
-#include <iostream>
 #include <vector>
+#include <iostream>
+#define ROOM_SIZE 10
+#define Local_Port 8082
 
 using namespace std;
 
+int new_port=Local_Port+1;
 class Client{
+    public:
     string Password;
     string Username;
     bool IslogedIn=false;
+    int Fd_id;
+    Client(string password,string username){
+        Password=password;
+        Username=username;
+    }
 };
-std::string exec(const char* cmd) {
+string exec(const char* cmd) {
     char buffer[128];
     std::string result = "";
     FILE* pipe = popen(cmd, "r");
@@ -33,7 +42,6 @@ std::string exec(const char* cmd) {
     pclose(pipe);
     return result;
 }
-
 int setupServer(int port) {
     struct sockaddr_in address;
     int server_fd;
@@ -66,27 +74,35 @@ void send_message(int id,char str[1024]){
     send(id,str,strlen(str),0);
 }
 
-
 vector<string> seperate_to_vector(char comm[]){
     vector<string> command;
     string temp;
+    cout<<(unsigned)strlen(comm)<<endl;
     for(int i=0;i<(unsigned)strlen(comm);i++){
-        if(comm[i]!=' ')
+        if(comm[i]!=' '){
             temp+=comm[i];
+            if(i==(unsigned)strlen(comm)-1)
+                command.push_back(temp);
+        }
         else{
             command.push_back(temp);
             temp.clear();
         }
+        
     }
     return command;
 }
+
 
 int main(int argc, char const *argv[]) {
     int server_fd, new_socket, max_sd;
     char buffer[1024] = {0};
     fd_set master_set, working_set;
     server_fd = setupServer(8080);
-
+    vector<Client> Clients;
+    Clients.push_back(Client("prmidaghm","pp"));
+    Clients.push_back(Client("frzin","kk"));
+    
     FD_ZERO(&master_set);
     max_sd = server_fd;
     FD_SET(server_fd, &master_set);
@@ -101,29 +117,36 @@ int main(int argc, char const *argv[]) {
             if (FD_ISSET(i, &working_set)) {
                 
                 if (i == server_fd) {  // new clinet
-                    cout<<"B";
                     new_socket = acceptClient(server_fd);
-                    cout<<"A";
+                    sprintf(buff,"%d is your id\n",new_socket);
+                    send(new_socket,buff,1024,0);
+                    memset(buffer, 0, 1024);
                     FD_SET(new_socket, &master_set);
                     if (new_socket > max_sd)
                         max_sd = new_socket;
-                    send_message(new_socket,"Wellcome. Please enter your Username:\n");
+                    printf("New client connected. fd = %d\n", new_socket);
+                    send_message(new_socket,"Wellcome. Please enter your Username:");
                 }
                 
                 else { // client sending msg
                     int bytes_received;
                     bytes_received = recv(i , buffer, 1024, 0);
-                    vector <string> command= seperate_to_vector(buffer);
                     if (bytes_received == 0) { // EOF
                         printf("client fd = %d closed\n", i);
                         close(i);
                         FD_CLR(i, &master_set);
                         continue;
                     }
+                    vector <string> command=seperate_to_vector(buffer);
                     if(command[0]=="user"){
-                        cout<<"hi";
-                        
+                        printf("hi");
+                        send_message(i,"Enter password");
                     }
+                    else{
+                    printf("client %d: %s\n", i, buffer);
+                    }
+                    memset(buffer, 0, 1024);
+                    command.clear();
                 }
             }
         }
