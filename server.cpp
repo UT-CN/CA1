@@ -9,11 +9,13 @@
 #include <sys/time.h>
 #include <vector>
 #include <iostream>
+#include <map>
 #define ROOM_SIZE 10
 #define Local_Port 8082
 
 using namespace std;
 
+map<int,string> username_storage;
 int new_port=Local_Port+1;
 class Client{
     public:
@@ -102,7 +104,7 @@ int main(int argc, char const *argv[]) {
     vector<Client> Clients;
     Clients.push_back(Client("prmidaghm","pp"));
     Clients.push_back(Client("frzin","kk"));
-    
+
     FD_ZERO(&master_set);
     max_sd = server_fd;
     FD_SET(server_fd, &master_set);

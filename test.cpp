@@ -9,8 +9,11 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
+#include <map>
+
 using namespace std;
 
+map<int,string> my;
 vector<string> seperate_to_vector(char comm[]){
     vector<string> command;
     string temp;
@@ -32,7 +35,9 @@ vector<string> seperate_to_vector(char comm[]){
 int main(){
     char buff[1024];
     sprintf(buff,"hi baby");
-    
+    my[1]="Js";
+    if(my[0]==NULL)
+        cout<<"hi";
     vector <string> command=seperate_to_vector(buff);
     for(int i=0;i<command.size();i++)
         cout<<command[i]<<endl;
