@@ -141,13 +141,23 @@ void pass_command(vector<string> command,int i){
 void pwd_command(vector<string> command,int i){
     if(is_loged_in(i)){
         string str=exec("pwd");
+        str="257: "+str;
         char* result=const_cast<char*>(str.c_str());
         send_message(i,result);
     }
     else 
         send_message(i,"332: Need account for login.");
 }
+void mkd_command(vector<string> command,int i){
+    if(is_loged_in(i)){
+        string str="mkdir "+ command[1];
+        str=exec(str.c_str());
+        str="257: "+ command[1] +" created.";
+        char* result=const_cast<char*>(str.c_str());
 
+        send_message(i,result);
+    }
+}
 int main(int argc, char const *argv[]) {
     int server_fd, new_socket, max_sd;
     char buffer[1024] = {0};
@@ -200,6 +210,8 @@ int main(int argc, char const *argv[]) {
                     if(command[0]=="pwd"){
                         pwd_command(command,i);
                     }
+                    if(command[0]=="mkd")
+                        mkd_command(command,i);
                     else{
                     printf("client %d: %s\n", i, buffer);
                     }
