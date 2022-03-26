@@ -116,6 +116,38 @@ bool check_password(string password,int fd,string username){
     return false;
 
 }
+bool is_loged_in(int fd){
+    for(int i=0;i<Clients.size();i++){
+        if(Clients[i].Fd_id==fd && Clients[i].IslogedIn)
+            return true;
+    }
+    return false;
+}
+void user_command(vector<string> command,int i){
+    if(check_username(command[1],i))
+        send_message(i,"331: User name okay. need password.");
+    else
+        send_message(i,"Invalid username or password.");
+}
+void pass_command(vector<string> command,int i){
+    if(username_storage.count(i)==0)
+        send_message(i,"503: Bad sequence of commands.");
+    else if(check_password(command[1],i,username_storage[i])){
+            send_message(i,"230: User logged in, proceed. Logged out if appropriate.");
+        }
+        else
+            send_message(i,"Invalid username or password.");
+}
+void pwd_command(vector<string> command,int i){
+    if(is_loged_in(i)){
+        string str=exec("pwd");
+        char* result=const_cast<char*>(str.c_str());
+        send_message(i,result);
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+
 int main(int argc, char const *argv[]) {
     int server_fd, new_socket, max_sd;
     char buffer[1024] = {0};
@@ -160,19 +192,13 @@ int main(int argc, char const *argv[]) {
                     }
                     vector <string> command=seperate_to_vector(buffer);
                     if(command[0]=="user"){
-                        if(check_username(command[1],i))
-                            send_message(i,"331: User name okay. need password.");
-                        else
-                            send_message(i,"Invalid username or password.");
+                        user_command(command,i);
                     }
                     if(command[0]== "pass"){
-                        if(username_storage.count(i)==0)
-                            send_message(i,"503: Bad sequence of commands.");
-                        else if(check_password(command[1],i,username_storage[i])){
-                            send_message(i,"230: User logged in, proceed. Logged out if appropriate.");
-                        }
-                        else
-                            send_message(i,"Invalid username or password.");
+                        pass_command(command,i);
+                    }
+                    if(command[0]=="pwd"){
+                        pwd_command(command,i);
                     }
                     else{
                     printf("client %d: %s\n", i, buffer);

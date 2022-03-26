@@ -30,10 +30,26 @@ vector<string> seperate_to_vector(char comm[]){
     }
     return command;
 }
+string exec(const char* cmd) {
+    char buffer[128];
+    std::string result = "";
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) throw std::runtime_error("popen() failed!");
+    try {
+        while (fgets(buffer, sizeof buffer, pipe) != NULL) {
+            result += buffer;
+        }
+    } catch (...) {
+        pclose(pipe);
+        throw;
+    }
+    pclose(pipe);
+
+    return result;
+}
 int main(){
-    char buff[1024];
-    sprintf(buff,"hi baby");
-    if(Map.find(9)==Map.end())
-        cout<<"hi";
+    string str=exec("pwd");
+    char* s=const_cast<char*>(str.c_str());
+    cout<<s;
 
 }
