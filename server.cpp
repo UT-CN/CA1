@@ -5,27 +5,31 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <sys/time.h>
 #include <vector>
 #include <iostream>
-#define ROOM_SIZE 10
+#include <map>
 #define Local_Port 8082
 
 using namespace std;
 
 int new_port=Local_Port+1;
+
+map<int,string> username_storage;
 class Client{
     public:
     string Password;
     string Username;
     bool IslogedIn=false;
     int Fd_id;
-    Client(string password,string username){
+    Client(string username,string password){
         Password=password;
         Username=username;
     }
+    void set_fd(int fd){Fd_id=fd;}
+    void loged_in(){IslogedIn=true;}
 };
+vector<Client> Clients;
 string exec(const char* cmd) {
     char buffer[128];
     std::string result = "";
@@ -77,11 +81,10 @@ void send_message(int id,char str[1024]){
 vector<string> seperate_to_vector(char comm[]){
     vector<string> command;
     string temp;
-    cout<<(unsigned)strlen(comm)<<endl;
-    for(int i=0;i<(unsigned)strlen(comm);i++){
+    for(int i=0;i<(unsigned)strlen(comm)-1;i++){
         if(comm[i]!=' '){
             temp+=comm[i];
-            if(i==(unsigned)strlen(comm)-1)
+            if(i==(unsigned)strlen(comm)-2)
                 command.push_back(temp);
         }
         else{
@@ -93,13 +96,31 @@ vector<string> seperate_to_vector(char comm[]){
     return command;
 }
 
+bool check_username(string username,int fd){
+    for(int i=0;i<Clients.size();i++){
+        if(Clients[i].Username==username){
+            username_storage[fd]=username;
+            return true;
+        }
+    }
+    return false;
+}
+bool check_password(string password,int fd,string username){
+    for(int i=0;i<Clients.size();i++){
+        if(Clients[i].Username==username && Clients[i].Password==password){
+            Clients[i].set_fd(fd);
+            Clients[i].loged_in();
+            return true;
+        }
+    }
+    return false;
 
+}
 int main(int argc, char const *argv[]) {
     int server_fd, new_socket, max_sd;
     char buffer[1024] = {0};
     fd_set master_set, working_set;
     server_fd = setupServer(8080);
-    vector<Client> Clients;
     Clients.push_back(Client("prmidaghm","pp"));
     Clients.push_back(Client("frzin","kk"));
     
@@ -139,8 +160,19 @@ int main(int argc, char const *argv[]) {
                     }
                     vector <string> command=seperate_to_vector(buffer);
                     if(command[0]=="user"){
-                        printf("hi");
-                        send_message(i,"Enter password");
+                        if(check_username(command[1],i))
+                            send_message(i,"331: User name okay. need password.");
+                        else
+                            send_message(i,"Invalid username or password.");
+                    }
+                    if(command[0]== "pass"){
+                        if(username_storage.count(i)==0)
+                            send_message(i,"503: Bad sequence of commands.");
+                        else if(check_password(command[1],i,username_storage[i])){
+                            send_message(i,"230: User logged in, proceed. Logged out if appropriate.");
+                        }
+                        else
+                            send_message(i,"Invalid username or password.");
                     }
                     else{
                     printf("client %d: %s\n", i, buffer);
