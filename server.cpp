@@ -1,23 +1,102 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <string.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <iostream>
 #include <vector>
+#include <cstdlib>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <json/json.h>
 
 using namespace std;
+
+class User{
+public:
+    User(Json::Value values){
+        this->name = values["user"].asString();
+        this->password = values["password"].asString();
+        string temp = values["admin"].asString();
+        if(temp == "true")
+            this->admin = true;
+        else
+            this->admin = false;
+
+        stringstream pass;
+        pass << values["password"].asString();
+        pass >> this->size;
+    }
+
+private:
+    string name;
+    string password;
+    bool admin;
+    int size;
+};
+
+class Config{
+public:
+    Config(string address){
+        Json::Reader reader;  //for reading the data
+        Json::Value values; //for modifying and storing new values
+
+        //opening file using fstream
+        ifstream file(address);
+
+        // check if there is any error is getting data from the json file
+        if (!reader.parse(file, values)) {
+            cout << reader.getFormattedErrorMessages();
+            exit(1);
+        }
+        this->set_values(values);
+    }
+
+    ~Config(){
+        for(int i = 0; i < int((this->users).size()); i++){
+            delete this->users[i];
+        }
+    }
+
+private:
+    int command_port;
+    int data_port;
+    vector<User*> users;
+    vector<string> files;
+
+    void set_values(Json::Value values){
+        stringstream ss;
+        ss << values["commandChannelPort"];
+        ss >> this->command_port;
+
+        ss.str("");
+        ss << values["dataChannelPort"];
+        ss >> this->data_port;
+
+        Json::Value users = values["users"];
+
+        for(int i = 0; i < int(users.size()); i++){
+            this->users.push_back(new User(users[i]));
+        }
+
+        Json::Value files = values["files"];
+        for(int i = 0; i < int(files.size()); i++){
+            string file = files[i].asString();
+            this->files.push_back(file);
+        }
+    }
+};
 
 class Client{
     string Password;
     string Username;
     bool IslogedIn=false;
 };
-std::string exec(const char* cmd) {
+
+string exec(const char* cmd) {
     char buffer[128];
     std::string result = "";
     FILE* pipe = popen(cmd, "r");
@@ -70,7 +149,7 @@ void send_message(int id,char str[1024]){
 vector<string> seperate_to_vector(char comm[]){
     vector<string> command;
     string temp;
-    for(int i=0;i<(unsigned)strlen(comm);i++){
+    for(int i=0; i< int(strlen(comm)); i++){
         if(comm[i]!=' ')
             temp+=comm[i];
         else{
@@ -85,6 +164,7 @@ int main(int argc, char const *argv[]) {
     int server_fd, new_socket, max_sd;
     char buffer[1024] = {0};
     fd_set master_set, working_set;
+    Config config_data = Config("config.json");
     server_fd = setupServer(8080);
 
     FD_ZERO(&master_set);
@@ -92,7 +172,6 @@ int main(int argc, char const *argv[]) {
     FD_SET(server_fd, &master_set);
 
     write(1, "Server is running\n", 18);
-    char buff[1024]={0};
     while (1) {
         working_set = master_set;
         select(max_sd + 1, &working_set, NULL, NULL, NULL);
