@@ -273,6 +273,26 @@ void ls_command(vector<string> command,int i){
     else 
         send_message(i,"332: Need account for login.");
 }
+void cwd_command(vector<string> command,int i){
+    string str="cd ";
+    if(is_loged_in(i)){
+        if(command.size()>1)
+            str+=command[1];
+        system("cd");
+        send_message(i,"250: Successful change.");
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+void rename_command(vector<string> command,int i){
+    string str="mv "+ command[1] + " " + command[2];
+    if(is_loged_in(i)){
+        exec(str.c_str());
+        send_message(i,"250: Successful change.");
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
 int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
@@ -332,6 +352,10 @@ int main(int argc, char const *argv[]) {
                         dele_command(command,i);
                     if(command[0]=="ls")
                         ls_command(command,i);
+                    if(command[0]=="cwd")
+                        cwd_command(command,i);
+                    if(command[0]=="rename")
+                        rename_command(command,i);
                     else{
                     printf("client %d: %s\n", i, buffer);
                     }
