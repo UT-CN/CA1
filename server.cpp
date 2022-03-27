@@ -8,7 +8,6 @@
 #include <vector>
 #include <iostream>
 #include <map>
-#define ROOM_SIZE 10
 #include <cstdlib>
 #include <string>
 #include <fstream>
@@ -192,6 +191,7 @@ string exec(const char* cmd) {
     pclose(pipe);
     return result;
 }
+
 int setupServer(int port) {
     struct sockaddr_in address;
     int server_fd;
@@ -328,6 +328,41 @@ void dele_command(vector<string> command,int i){
         send_message(i,"332: Need account for login.");
 }
 
+void ls_command(vector<string> command,int i){
+    if(is_loged_in(i)){
+        string str=exec("ls");
+        send_message(i,"226: List transfer done.");
+        char* result=const_cast<char*>(str.c_str());
+        send_message(fds_data[i],result);
+        
+        
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+
+void cwd_command(vector<string> command,int i){
+    string str="cd ";
+    if(is_loged_in(i)){
+        if(command.size()>1)
+            str+=command[1];
+        system("cd");
+        send_message(i,"250: Successful change.");
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+
+void rename_command(vector<string> command,int i){
+    string str="mv "+ command[1] + " " + command[2];
+    if(is_loged_in(i)){
+        exec(str.c_str());
+        send_message(i,"250: Successful change.");
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+
 void load_clients(vector<User*> users){
     for(int i = 0; i < users.size(); i++){
         Clients.push_back(Client(users[i]->get_name(), 
@@ -393,6 +428,12 @@ int main(int argc, char const *argv[]) {
                         mkd_command(command,i);
                     if(command[0]=="dele")
                         dele_command(command,i);
+                    if(command[0]=="ls")
+                        ls_command(command,i);
+                    if(command[0]=="cwd")
+                        cwd_command(command,i);
+                    if(command[0]=="rename")
+                        rename_command(command,i);
                     else{
                         cout << "client " << i << ":" << buffer << endl;
                     }
