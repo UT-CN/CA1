@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -8,11 +7,59 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <cstdlib>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <json/json.h>
+#include <iostream>
 
-#define Local_Port 8082
+using namespace std;
+
+class Ports{
+public:
+    Ports(string address){
+        Json::Reader reader;  //for reading the data
+        Json::Value values; //for modifying and storing new values
+
+        //opening file using fstream
+        ifstream file(address);
+
+        // check if there is any error is getting data from the json file
+        if (!reader.parse(file, values)) {
+            cout << reader.getFormattedErrorMessages();
+            exit(1);
+        }
+        this->set_values(values);
+    }
+
+    int get_command_port(){
+        return this->command_port;
+    }
+
+    int get_data_port(){
+        return this->data_port;
+    }
+
+private:
+    int command_port;
+    int data_port;
+
+    void set_values(Json::Value values){
+        stringstream ss;
+        ss << values["commandChannelPort"];
+        ss >> this->command_port;
+
+        ss.str("");
+        ss << values["dataChannelPort"];
+        ss >> this->data_port;
+    }
+};
+
 struct sockaddr_in bc_address;
 char buff_output[1024]={0};
 int id_room;
+
 int connectServer(int port) {
     int fd;
     struct sockaddr_in server_address;
@@ -24,29 +71,29 @@ int connectServer(int port) {
     server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     if (connect(fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) { // checking for errors
-        printf("Error in connecting to server\n");
+        cout << "Error in connecting to server" << endl;
     }
 
     return fd;
 }
 
 void alarm_handler(int sig){
-    
-}
 
+}
+    
 int main(int argc, char const *argv[]) {
     int fd,fd_data;
     int my_id;
     char buff[1024] = {0};
     char buffer[1024]={0};
     char buffer_data[1024]={0};
-    int client[3]={0};
-    fd = connectServer(8000);
-    fd_data=connectServer(8001);
+    Ports ports = Ports("ports.json");
+    fd = connectServer(ports.get_command_port());
+    fd_data=connectServer(ports.get_data_port());
     recv(fd,buffer,1024,0);
     my_id=atoi(&buffer[0]);
     memset(buffer,0,1024);
-    printf("Your id is: %d\n",my_id);
+    cout << "Your id is: " << my_id << endl;
     signal(SIGALRM, alarm_handler);
     siginterrupt(SIGALRM, 1);
     while (1) {
@@ -57,7 +104,7 @@ int main(int argc, char const *argv[]) {
         recv(fd_data,buffer_data,1024,0);
         alarm(0);
         if(strlen(buffer)!=0){
-            printf("%s\n",buffer);
+            cout << buffer << endl;
             memset(buffer,0,1024);
         }
         if(strlen(buffer_data)!=0){
