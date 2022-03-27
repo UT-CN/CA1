@@ -8,24 +8,21 @@
 #include <vector>
 #include <iostream>
 #include <map>
-<<<<<<< HEAD
 #define ROOM_SIZE 10
-=======
 #include <cstdlib>
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <json/json.h>
+#include "jsoncpp/include/json/json.h"
 
->>>>>>> 3f7a854d00d189b4634465f6aca936016a6972fd
 #define Local_Port 8082
 
 using namespace std;
 
 map<int,string> username_storage;
+map<int,int> fds_data;
 int new_port=Local_Port+1;
 
-map<int,string> username_storage;
 
 class User{
 public:
@@ -245,13 +242,32 @@ void mkd_command(vector<string> command,int i){
 
         send_message(i,result);
     }
+    else 
+        send_message(i,"332: Need account for login.");
+}
+void dele_command(vector<string> command,int i){
+    string str= "rm ";
+    if(is_loged_in(i)){
+        if(command[1]=="-d")
+            str+="-d ";
+        str+=command[2];
+        str=exec(str.c_str());
+        str="250: "+ command[2] + " deleted.";
+        char* result=const_cast<char*>(str.c_str());
+        send_message(i,result);
+        
+        
+    }
+    else 
+        send_message(i,"332: Need account for login.");
 }
 int main(int argc, char const *argv[]) {
-    int server_fd, new_socket, max_sd;
+    int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
-    fd_set master_set, working_set;
+    fd_set master_set, working_set,data_set;
     Config config_data = Config("config.json");
-    server_fd = setupServer(8080);
+    server_fd = setupServer(8000);
+    server_data = setupServer(8001);
     Clients.push_back(Client("prmidaghm","pp"));
     Clients.push_back(Client("frzin","kk"));
 
@@ -269,15 +285,17 @@ int main(int argc, char const *argv[]) {
             if (FD_ISSET(i, &working_set)) {
                 
                 if (i == server_fd) {  // new clinet
-                    new_socket = acceptClient(server_fd);
-                    sprintf(buff,"%d is your id\n",new_socket);
-                    send(new_socket,buff,1024,0);
+                    command_fd = acceptClient(server_fd);
+                    data_fd = acceptClient(server_data);
+                    sprintf(buff,"%d is your id\n",command_fd);
+                    send(command_fd,buff,1024,0);
                     memset(buffer, 0, 1024);
-                    FD_SET(new_socket, &master_set);
-                    if (new_socket > max_sd)
-                        max_sd = new_socket;
-                    printf("New client connected. fd = %d\n", new_socket);
-                    send_message(new_socket,"Wellcome. Please enter your Username:");
+                    FD_SET(command_fd, &master_set);
+                    if (command_fd > max_sd)
+                        max_sd = command_fd;
+                    printf("New client connected. fd = %d\n", command_fd);
+                    send_message(command_fd,"Wellcome. Please enter your Username:");
+                    fds_data[command_fd]=data_fd;
                 }
                 
                 else { // client sending msg
@@ -290,17 +308,16 @@ int main(int argc, char const *argv[]) {
                         continue;
                     }
                     vector <string> command=seperate_to_vector(buffer);
-                    if(command[0]=="user"){
+                    if(command[0]=="user")
                         user_command(command,i);
-                    }
-                    if(command[0]== "pass"){
+                    if(command[0]== "pass")
                         pass_command(command,i);
-                    }
-                    if(command[0]=="pwd"){
+                    if(command[0]=="pwd")
                         pwd_command(command,i);
-                    }
                     if(command[0]=="mkd")
                         mkd_command(command,i);
+                    if(command[0]=="dele")
+                        dele_command(command,i);
                     else{
                     printf("client %d: %s\n", i, buffer);
                     }
