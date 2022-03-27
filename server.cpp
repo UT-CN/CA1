@@ -137,14 +137,20 @@ public:
         this->admin = _admin;
         this->size = _size;
         this->logedIn = false;
+        // todo:
+        curr_position = "ADD server position here"
     }
 
     void set_fd(int fd){
         this->fd_id = fd;
     }
 
-    void loged_in(){
+    void log_in(){
         this->logedIn = true;
+    }
+
+    void log_out(){
+        this->logedIn = false;
     }
 
     string get_username(){
@@ -170,6 +176,7 @@ private:
     int size;
     bool logedIn;
     int fd_id;
+    string curr_position;
 };
 
 vector<Client> Clients;
@@ -255,7 +262,7 @@ bool check_password(string password,int fd,string username){
     for(int i = 0; i < int(Clients.size()); i++){
         if(Clients[i].get_username() == username && Clients[i].get_password() == password){
             Clients[i].set_fd(fd);
-            Clients[i].loged_in();
+            Clients[i].log_in();
             return true;
         }
     }
@@ -268,6 +275,13 @@ bool is_loged_in(int fd){
             return true;
     }
     return false;
+}
+
+void log_out(int fd){
+    for(int i=0;i<int(Clients.size());i++){
+        Clients[i].log_out();
+        return;
+    }
 }
 
 void user_command(vector<string> command,int i){
@@ -340,7 +354,7 @@ void dele_command(vector<string> command,int i){
     }
 }
 
-void ls_command(vector<string> command,int i){
+void ls_command(vector<string> command, int i){
     if(is_loged_in(i)){
         string str=exec("ls");
         char massage[] = "226: List transfer done.";
@@ -374,6 +388,18 @@ void rename_command(vector<string> command,int i){
     if(is_loged_in(i)){
         exec(str.c_str());
         char massage[] = "250: Successful change.";
+        send_message(i, massage);
+    }
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
+}
+
+void quit_command(vector<string> command,int i){
+    if(is_loged_in(i)){
+        log_out(i);
+        char massage[] = "221: Successful Quit.";
         send_message(i, massage);
     }
     else{
@@ -454,8 +480,14 @@ int main(int argc, char const *argv[]) {
                         cwd_command(command,i);
                     else if(command[0]=="rename")
                         rename_command(command,i);
+                    else if(command[0]=="quit")
+                        quit_command(command,i);
                     else{
+                        /////////////////////
                         cout << "client " << i << ":" << buffer << endl;
+                        ////////////////
+                        char massage[] = "501:Syntax error in parameters or arguments.";
+                        send_message(i, massage);
                     }
                     memset(buffer, 0, 1024);
                     command.clear();
