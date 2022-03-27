@@ -261,6 +261,18 @@ void dele_command(vector<string> command,int i){
     else 
         send_message(i,"332: Need account for login.");
 }
+void ls_command(vector<string> command,int i){
+    if(is_loged_in(i)){
+        string str=exec("ls");
+        send_message(i,"226: List transfer done.");
+        char* result=const_cast<char*>(str.c_str());
+        send_message(fds_data[i],result);
+        
+        
+    }
+    else 
+        send_message(i,"332: Need account for login.");
+}
 int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
@@ -318,6 +330,8 @@ int main(int argc, char const *argv[]) {
                         mkd_command(command,i);
                     if(command[0]=="dele")
                         dele_command(command,i);
+                    if(command[0]=="ls")
+                        ls_command(command,i);
                     else{
                     printf("client %d: %s\n", i, buffer);
                     }
