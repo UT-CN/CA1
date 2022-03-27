@@ -78,18 +78,18 @@ int connectServer(int port) {
 }
 
 void alarm_handler(int sig){
+
 }
-
-
+    
 int main(int argc, char const *argv[]) {
-    int fd;
+    int fd,fd_data;
     int my_id;
     char buff[1024] = {0};
     char buffer[1024]={0};
-
+    char buffer_data[1024]={0};
     Ports ports = Ports("ports.json");
     fd = connectServer(ports.get_command_port());
-
+    fd_data=connectServer(ports.get_data_port());
     recv(fd,buffer,1024,0);
     my_id=atoi(&buffer[0]);
     memset(buffer,0,1024);
@@ -97,12 +97,19 @@ int main(int argc, char const *argv[]) {
     signal(SIGALRM, alarm_handler);
     siginterrupt(SIGALRM, 1);
     while (1) {
-        alarm(2);
+        alarm(1);
         recv(fd,buffer,1024,0);
+        alarm(0);
+        alarm(1);
+        recv(fd_data,buffer_data,1024,0);
         alarm(0);
         if(strlen(buffer)!=0){
             cout << buffer << endl;
             memset(buffer,0,1024);
+        }
+        if(strlen(buffer_data)!=0){
+            printf("Data: %s\n",buffer_data);
+            memset(buffer_data,0,1024);
         }
         alarm(2);
         read(0, buff, 1024);
