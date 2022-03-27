@@ -40,6 +40,22 @@ public:
         pass >> this->size;
     }
 
+    string get_name(){
+        return this->name;
+    }
+
+    string get_password(){
+        return this->password;
+    }
+
+    int get_size(){
+        return this->size;
+    }
+
+    bool is_admin(){
+        return this->admin;
+    }
+
 private:
     string name;
     string password;
@@ -68,6 +84,22 @@ public:
         for(int i = 0; i < int((this->users).size()); i++){
             delete this->users[i];
         }
+    }
+
+    int get_command_port(){
+        return this->command_port;
+    }
+
+    int get_data_port(){
+        return this->data_port;
+    }
+
+    vector<User*> get_users(){
+        return this->users;
+    }
+
+    vector<string> get_files(){
+        return this->files;
     }
 
 private:
@@ -100,17 +132,46 @@ private:
 };
 
 class Client{
-    public:
-    string Password;
-    string Username;
-    bool IslogedIn=false;
-    int Fd_id;
-    Client(string username,string password){
-        Password=password;
-        Username=username;
+public:
+    Client(string _username, string _password, bool _admin, int _size){
+        this->password = _password;
+        this->username = _username;
+        this->admin = _admin;
+        this->size = _size;
+        this->logedIn = false;
     }
-    void set_fd(int fd){Fd_id=fd;}
-    void loged_in(){IslogedIn=true;}
+
+    void set_fd(int fd){
+        this->fd_id = fd;
+    }
+
+    void loged_in(){
+        this->logedIn = true;
+    }
+
+    string get_username(){
+        return this->username;
+    }
+
+    string get_password(){
+        return this->password;
+    }
+
+    int get_fd_id(){
+        return this->fd_id;
+    }
+
+    bool isLogedIn(){
+        return this->logedIn;
+    }
+
+private:
+    string password;
+    string username;
+    bool admin;
+    int size;
+    bool logedIn;
+    int fd_id;
 };
 
 vector<Client> Clients;
@@ -183,37 +244,40 @@ vector<string> seperate_to_vector(char comm[]){
 
 bool check_username(string username,int fd){
     for(int i=0;i<int(Clients.size());i++){
-        if(Clients[i].Username==username){
+        if(Clients[i].get_username() == username){
             username_storage[fd]=username;
             return true;
         }
     }
     return false;
 }
+
 bool check_password(string password,int fd,string username){
-    for(int i=0;i<int(Clients.size());i++){
-        if(Clients[i].Username==username && Clients[i].Password==password){
+    for(int i = 0; i < int(Clients.size()); i++){
+        if(Clients[i].get_username() == username && Clients[i].get_password() == password){
             Clients[i].set_fd(fd);
             Clients[i].loged_in();
             return true;
         }
     }
     return false;
-
 }
+
 bool is_loged_in(int fd){
     for(int i=0;i<int(Clients.size());i++){
-        if(Clients[i].Fd_id==fd && Clients[i].IslogedIn)
+        if(Clients[i].get_fd_id() == fd && Clients[i].isLogedIn())
             return true;
     }
     return false;
 }
+
 void user_command(vector<string> command,int i){
     if(check_username(command[1],i))
         send_message(i,"331: User name okay. need password.");
     else
         send_message(i,"Invalid username or password.");
 }
+
 void pass_command(vector<string> command,int i){
     if(username_storage.count(i)==0)
         send_message(i,"503: Bad sequence of commands.");
@@ -223,6 +287,7 @@ void pass_command(vector<string> command,int i){
         else
             send_message(i,"Invalid username or password.");
 }
+
 void pwd_command(vector<string> command,int i){
     if(is_loged_in(i)){
         string str=exec("pwd");
@@ -233,6 +298,7 @@ void pwd_command(vector<string> command,int i){
     else 
         send_message(i,"332: Need account for login.");
 }
+
 void mkd_command(vector<string> command,int i){
     if(is_loged_in(i)){
         string str="mkdir "+ command[1];
@@ -261,21 +327,30 @@ void dele_command(vector<string> command,int i){
     else 
         send_message(i,"332: Need account for login.");
 }
+
+void load_clients(vector<User*> users){
+    for(int i = 0; i < users.size(); i++){
+        Clients.push_back(Client(users[i]->get_name(), 
+                                 users[i]->get_password(),
+                                 users[i]->is_admin(),
+                                 users[i]->get_size()));
+    }
+}
+
 int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
     fd_set master_set, working_set,data_set;
     Config config_data = Config("config.json");
-    server_fd = setupServer(8000);
-    server_data = setupServer(8001);
-    Clients.push_back(Client("prmidaghm","pp"));
-    Clients.push_back(Client("frzin","kk"));
+    load_clients(config_data.get_users());
+    server_fd = setupServer(config_data.get_command_port());
+    server_data = setupServer(config_data.get_data_port());
 
     FD_ZERO(&master_set);
     max_sd = server_fd;
     FD_SET(server_fd, &master_set);
 
-    write(1, "Server is running\n", 18);
+    cout << "Server is running" << endl;
     char buff[1024]={0};
     while (1) {
         working_set = master_set;
@@ -293,7 +368,7 @@ int main(int argc, char const *argv[]) {
                     FD_SET(command_fd, &master_set);
                     if (command_fd > max_sd)
                         max_sd = command_fd;
-                    printf("New client connected. fd = %d\n", command_fd);
+                    cout << "New client connected. fd = " << command_fd << endl;
                     send_message(command_fd,"Wellcome. Please enter your Username:");
                     fds_data[command_fd]=data_fd;
                 }
@@ -302,7 +377,7 @@ int main(int argc, char const *argv[]) {
                     int bytes_received;
                     bytes_received = recv(i , buffer, 1024, 0);
                     if (bytes_received == 0) { // EOF
-                        printf("client fd = %d closed\n", i);
+                        cout << "client fd = " << i << " closed." << endl;
                         close(i);
                         FD_CLR(i, &master_set);
                         continue;
@@ -319,7 +394,7 @@ int main(int argc, char const *argv[]) {
                     if(command[0]=="dele")
                         dele_command(command,i);
                     else{
-                    printf("client %d: %s\n", i, buffer);
+                        cout << "client " << i << ":" << buffer << endl;
                     }
                     memset(buffer, 0, 1024);
                     command.clear();
