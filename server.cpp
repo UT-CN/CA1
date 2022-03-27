@@ -12,7 +12,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include "jsoncpp/include/json/json.h"
+#include "jsoncpp/dist/json/json.h"
 
 #define Local_Port 8082
 
@@ -108,13 +108,12 @@ private:
     vector<string> files;
 
     void set_values(Json::Value values){
-        stringstream ss;
-        ss << values["commandChannelPort"];
-        ss >> this->command_port;
+        stringstream ssc, ssd;
+        ssc << values["commandChannelPort"];
+        ssc >> this->command_port;
 
-        ss.str("");
-        ss << values["dataChannelPort"];
-        ss >> this->data_port;
+        ssd << values["dataChannelPort"];
+        ssd >> this->data_port;
 
         Json::Value users = values["users"];
 
@@ -177,9 +176,9 @@ vector<Client> Clients;
 
 string exec(const char* cmd) {
     char buffer[128];
-    std::string result = "";
+    string result = "";
     FILE* pipe = popen(cmd, "r");
-    if (!pipe) throw std::runtime_error("popen() failed!");
+    if (!pipe) throw runtime_error("popen() failed!");
     try {
         while (fgets(buffer, sizeof buffer, pipe) != NULL) {
             result += buffer;
@@ -272,20 +271,29 @@ bool is_loged_in(int fd){
 }
 
 void user_command(vector<string> command,int i){
-    if(check_username(command[1],i))
-        send_message(i,"331: User name okay. need password.");
-    else
-        send_message(i,"Invalid username or password.");
+    if(check_username(command[1],i)){
+        char massage[] = "331: User name okay. need password.";
+        send_message(i, massage);
+    }
+    else{
+        char massage[] = "Invalid username or password.";
+        send_message(i, massage);
+    }
 }
 
 void pass_command(vector<string> command,int i){
-    if(username_storage.count(i)==0)
-        send_message(i,"503: Bad sequence of commands.");
+    if(username_storage.count(i)==0){
+        char massage[] = "503: Bad sequence of commands.";
+        send_message(i, massage);
+    }
     else if(check_password(command[1],i,username_storage[i])){
-            send_message(i,"230: User logged in, proceed. Logged out if appropriate.");
-        }
-        else
-            send_message(i,"Invalid username or password.");
+        char massage[] = "230: User logged in, proceed. Logged out if appropriate.";
+        send_message(i, massage);
+    }
+    else{
+        char massage[] = "Invalid username or password.";
+        send_message(i, massage);
+    }
 }
 
 void pwd_command(vector<string> command,int i){
@@ -295,8 +303,10 @@ void pwd_command(vector<string> command,int i){
         char* result=const_cast<char*>(str.c_str());
         send_message(i,result);
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 
 void mkd_command(vector<string> command,int i){
@@ -308,8 +318,10 @@ void mkd_command(vector<string> command,int i){
 
         send_message(i,result);
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 void dele_command(vector<string> command,int i){
     string str= "rm ";
@@ -321,24 +333,25 @@ void dele_command(vector<string> command,int i){
         str="250: "+ command[2] + " deleted.";
         char* result=const_cast<char*>(str.c_str());
         send_message(i,result);
-        
-        
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 
 void ls_command(vector<string> command,int i){
     if(is_loged_in(i)){
         string str=exec("ls");
-        send_message(i,"226: List transfer done.");
+        char massage[] = "226: List transfer done.";
+        send_message(i, massage);
         char* result=const_cast<char*>(str.c_str());
         send_message(fds_data[i],result);
-        
-        
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 
 void cwd_command(vector<string> command,int i){
@@ -347,24 +360,30 @@ void cwd_command(vector<string> command,int i){
         if(command.size()>1)
             str+=command[1];
         system("cd");
-        send_message(i,"250: Successful change.");
+        char massage[] = "250: Successful change.";
+        send_message(i, massage);
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 
 void rename_command(vector<string> command,int i){
     string str="mv "+ command[1] + " " + command[2];
     if(is_loged_in(i)){
         exec(str.c_str());
-        send_message(i,"250: Successful change.");
+        char massage[] = "250: Successful change.";
+        send_message(i, massage);
     }
-    else 
-        send_message(i,"332: Need account for login.");
+    else{
+        char massage[] = "332: Need account for login.";
+        send_message(i, massage);
+    }
 }
 
 void load_clients(vector<User*> users){
-    for(int i = 0; i < users.size(); i++){
+    for(int i = 0; i < int(users.size()); i++){
         Clients.push_back(Client(users[i]->get_name(), 
                                  users[i]->get_password(),
                                  users[i]->is_admin(),
@@ -375,7 +394,7 @@ void load_clients(vector<User*> users){
 int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
-    fd_set master_set, working_set,data_set;
+    fd_set master_set, working_set;
     Config config_data = Config("config.json");
     load_clients(config_data.get_users());
     server_fd = setupServer(config_data.get_command_port());
@@ -404,7 +423,8 @@ int main(int argc, char const *argv[]) {
                     if (command_fd > max_sd)
                         max_sd = command_fd;
                     cout << "New client connected. fd = " << command_fd << endl;
-                    send_message(command_fd,"Wellcome. Please enter your Username:");
+                    char massage[] = "Wellcome. Please enter your Username:";
+                    send_message(command_fd, massage);
                     fds_data[command_fd]=data_fd;
                 }
                 
@@ -420,19 +440,19 @@ int main(int argc, char const *argv[]) {
                     vector <string> command=seperate_to_vector(buffer);
                     if(command[0]=="user")
                         user_command(command,i);
-                    if(command[0]== "pass")
+                    else if(command[0]== "pass")
                         pass_command(command,i);
-                    if(command[0]=="pwd")
+                    else if(command[0]=="pwd")
                         pwd_command(command,i);
-                    if(command[0]=="mkd")
+                    else if(command[0]=="mkd")
                         mkd_command(command,i);
-                    if(command[0]=="dele")
+                    else if(command[0]=="dele")
                         dele_command(command,i);
-                    if(command[0]=="ls")
+                    else if(command[0]=="ls")
                         ls_command(command,i);
-                    if(command[0]=="cwd")
+                    else if(command[0]=="cwd")
                         cwd_command(command,i);
-                    if(command[0]=="rename")
+                    else if(command[0]=="rename")
                         rename_command(command,i);
                     else{
                         cout << "client " << i << ":" << buffer << endl;

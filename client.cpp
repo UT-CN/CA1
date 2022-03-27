@@ -11,8 +11,8 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <json/json.h>
 #include <iostream>
+#include "jsoncpp/dist/json/json.h"
 
 using namespace std;
 
@@ -46,13 +46,12 @@ private:
     int data_port;
 
     void set_values(Json::Value values){
-        stringstream ss;
-        ss << values["commandChannelPort"];
-        ss >> this->command_port;
+        stringstream ssc, ssd;
+        ssc << values["commandChannelPort"];
+        ssc >> this->command_port;
 
-        ss.str("");
-        ss << values["dataChannelPort"];
-        ss >> this->data_port;
+        ssd << values["dataChannelPort"];
+        ssd >> this->data_port;
     }
 };
 
@@ -90,6 +89,7 @@ int main(int argc, char const *argv[]) {
     Ports ports = Ports("ports.json");
     fd = connectServer(ports.get_command_port());
     fd_data=connectServer(ports.get_data_port());
+
     recv(fd,buffer,1024,0);
     my_id=atoi(&buffer[0]);
     memset(buffer,0,1024);
@@ -108,7 +108,7 @@ int main(int argc, char const *argv[]) {
             memset(buffer,0,1024);
         }
         if(strlen(buffer_data)!=0){
-            printf("Data: %s\n",buffer_data);
+            cout << "Data: " << buffer_data << endl;
             memset(buffer_data,0,1024);
         }
         alarm(2);
