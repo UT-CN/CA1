@@ -10,6 +10,10 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <map>
+
+using namespace std;
+
+map<int,string> my;
 using namespace std;
 map<int,string> Map;
 vector<string> seperate_to_vector(char comm[]){
@@ -48,8 +52,8 @@ string exec(const char* cmd) {
     return result;
 }
 int main(){
-    string str=exec("pwd");
-    char* s=const_cast<char*>(str.c_str());
-    cout<<s;
-
+    vector<string> p;
+    p.push_back("hi");
+    if(p[2]!=NULL)
+        cout<<"a";
 }

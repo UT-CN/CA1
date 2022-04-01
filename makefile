@@ -5,11 +5,20 @@ TARGET = server.out client.out
 
 all: $(TARGET)
 
-server.out: server.cpp
-	$(CC) $(CFLAGS) -o server.out server.cpp
+server.out: server.o jsoncpp.o
+	$(CC) $(CFLAGS) -o server.out server.o jsoncpp.o
 
-client.out:
-	$(CC) $(CFLAGS) -o client.out client.cpp
+client.out: client.o jsoncpp.o
+	$(CC) $(CFLAGS) -o client.out client.o jsoncpp.o
+
+server.o: server.cpp
+	$(CC) $(CFLAGS) -c server.cpp
+
+client.o: client.cpp
+	$(CC) $(CFLAGS) -c client.cpp
+
+jsoncpp.o: jsoncpp/*
+	$(CC) $(CFLAGS) -c jsoncpp/dist/jsoncpp.cpp
 
 clean:
-	rm $(TARGET)
+	rm *.o *.out
