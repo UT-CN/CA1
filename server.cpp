@@ -15,6 +15,8 @@
 #include <sstream>
 #include "jsoncpp/dist/json/json.h"
 
+#define BUFFER_SIZE 1024
+
 using namespace std;
 
 map<int,string> username_storage;
@@ -34,9 +36,9 @@ public:
         else
             this->admin = false;
 
-        stringstream pass;
-        pass << values["password"].asString();
-        pass >> this->size;
+        stringstream size_value;
+        size_value << values["size"].asString();
+        size_value >> this->size;
     }
 
     string get_name(){
@@ -59,7 +61,7 @@ private:
     string name;
     string password;
     bool admin;
-    int size;
+    float size;
 };
 
 class Config{
@@ -131,11 +133,11 @@ private:
 Config config_data = Config("config.json");
 class Client{
 public:
-    Client(string _username, string _password, bool _admin, int _size,string path){
+    Client(string _username, string _password, bool _admin, float _size,string path){
         this->password = _password;
         this->username = _username;
         this->admin = _admin;
-        this->size = _size;
+        this->size = _size*1024; // convert size from kbyte to byte
         this->logedIn = false;
         this->curr_position = "";
     }
@@ -166,6 +168,10 @@ public:
         return this->fd_id;
     }
 
+    int get_size(){
+        return this->size;
+    }
+
     string get_path(){
         if(curr_position.size()==0)
             return "";
@@ -173,23 +179,33 @@ public:
         path.erase(path.size()-1);
         return path;
     }
+
     bool isLogedIn(){
         return this->logedIn;
     }
+
     void update_position(string new_path){//Add new path to curr path.
         curr_position=curr_position+ new_path + "/";
     }
+
     void back_to_home(){//Return to original directory
         curr_position="";
     }
+
     void set_position(){
         curr_position="cd " ; 
     }
+
     void check_path_is_exists(){ //If there is no current path, it goes back to the original directory.
         if(curr_position.size()!=0 && !exists_file(curr_position)){
             curr_position="";
         }
     }
+
+    void reduce_size(int downloaded_size){
+        this->size -= downloaded_size;
+    }
+
 private:
     string password;
     string username;
@@ -252,7 +268,7 @@ int acceptClient(int server_fd) {
     return client_fd;
 }
 
-void send_message(int id,char str[1024]){
+void send_message(int id,char str[BUFFER_SIZE]){
     send(id,str,strlen(str),0);
 }
 
@@ -358,7 +374,7 @@ void mkd_command(vector<string> command,Client* client){
 }
 void dele_command(vector<string> command,Client* client){
     if(is_permissionFiles(client,command[2])){
-        char message[] = "Permission denied.";
+        char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(),message);
         return;
     }
@@ -396,13 +412,12 @@ string erase_cd(string command){
     return command;
 }
 void cwd_command(vector<string> command,Client* client){
-    
     if(command.size()==1){
         client->back_to_home();
         return;
     }
     if(client->get_path().size()==0 && command[1]==".."){
-        char message[] = "Permission denied.";
+        char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
         return;
     }
@@ -412,7 +427,7 @@ void cwd_command(vector<string> command,Client* client){
     str+=command[1];
     cout<<str;
     if(!exists_file(str)){
-        char message[] = "File dosen't exists.";
+        char message[] = "500: Error";
         send_message(client->get_fd_id(), message);
         return;
     }
@@ -426,7 +441,7 @@ void cwd_command(vector<string> command,Client* client){
 }
 void rename_command(vector<string> command,Client* client){
     if(is_permissionFiles(client,command[1])){
-        char message[] = "Permission denied.";
+        char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
         return;
     }
@@ -459,9 +474,43 @@ bool is_loged_in(int fd){
     return false;
 }
 void quit_command(vector<string> command,Client* client){
-        client->log_out();
-        char message[] = "221: Successful Quit.";
+    client->log_out();
+    char message[] = "221: Successful Quit.";
+    send_message(client->get_fd_id(), message);
+}
+
+void retr_command(vector<string> command,Client* client){
+    if(is_permissionFiles(client,command[1])){
+        char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
+        return;
+    }
+
+    string file_path = client->get_path() + "/"+ command[1];
+    if(!exists_file(file_path)){
+        char message[] = "500: Error";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+
+    ifstream in_file(file_path, ios::binary);
+    in_file.seekg(0, ios::end);
+    int file_size_in_bytes = in_file.tellg();
+    if(client->get_size() < file_size_in_bytes){
+        char message[] = "425: Can't open data connection.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+
+    while(in_file.eof() == false){
+        char buff[BUFFER_SIZE] = {0};
+        in_file.read(buff, BUFFER_SIZE);
+        send_message(fds_data[client->get_fd_id()], buff);
+    }
+    client->reduce_size(file_size_in_bytes);
+
+    char message[] = "226: Successful Download.";
+    send_message(client->get_fd_id(), message);
 }
 
 void load_clients(vector<User*> users){
@@ -479,7 +528,7 @@ void load_clients(vector<User*> users){
 
 int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
-    char buffer[1024] = {0};
+    char buffer[BUFFER_SIZE] = {0};
     fd_set master_set, working_set;
     load_clients(config_data.get_users());
     server_fd = setupServer(config_data.get_command_port());
@@ -490,7 +539,7 @@ int main(int argc, char const *argv[]) {
     FD_SET(server_fd, &master_set);
 
     cout << "Server is running" << endl;
-    char buff[1024]={0};
+    char buff[BUFFER_SIZE]={0};
     while (1) {
         working_set = master_set;
         select(max_sd + 1, &working_set, NULL, NULL, NULL);
@@ -501,9 +550,9 @@ int main(int argc, char const *argv[]) {
                 if (i == server_fd) {  // new clinet
                     command_fd = acceptClient(server_fd);
                     data_fd = acceptClient(server_data);
-                    sprintf(buff,"%d is your id\n",command_fd);
-                    send(command_fd,buff,1024,0);
-                    memset(buffer, 0, 1024);
+                    sprintf(buff, "%d is your id\n", command_fd);
+                    send(command_fd, buff, BUFFER_SIZE, 0);
+                    memset(buffer, 0, BUFFER_SIZE);
                     FD_SET(command_fd, &master_set);
                     if (command_fd > max_sd)
                         max_sd = command_fd;
@@ -515,7 +564,7 @@ int main(int argc, char const *argv[]) {
                 
                 else { // client sending msg
                     int bytes_received;
-                    bytes_received = recv(i , buffer, 1024, 0);
+                    bytes_received = recv(i , buffer, BUFFER_SIZE, 0);
                     if (bytes_received == 0) { // EOF
                         cout << "client fd = " << i << " closed." << endl;
                         close(i);
@@ -548,6 +597,8 @@ int main(int argc, char const *argv[]) {
                         cwd_command(command,client);
                     else if(command[0]=="rename")
                         rename_command(command,client);
+                    else if(command[0]=="retr")
+                        retr_command(command,client);
                     else if(command[0]=="quit")
                         quit_command(command,client);
                     /*else{
@@ -559,7 +610,7 @@ int main(int argc, char const *argv[]) {
                             send_message(i, message);
                         }
                     }*/
-                    memset(buffer, 0, 1024);
+                    memset(buffer, 0, BUFFER_SIZE);
                     command.clear();
                 }
             }
