@@ -7,9 +7,12 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
+
 #include <sys/time.h>
 #include <map>
+#include <fstream>
 
 using namespace std;
 
@@ -34,6 +37,15 @@ vector<string> seperate_to_vector(char comm[]){
     }
     return command;
 }
+inline bool exists_file(const string& name){
+  struct stat buffer;   
+  return (stat(name.c_str(), &buffer) == 0); 
+}
+bool is_file_exist(const char *fileName)
+{
+    std::ifstream infile(fileName);
+    return infile.good();
+}
 string exec(const char* cmd) {
     char buffer[128];
     std::string result = "";
@@ -51,9 +63,8 @@ string exec(const char* cmd) {
 
     return result;
 }
+
 int main(){
     vector<string> p;
-    p.push_back("hi");
-    if(p[2]!=NULL)
-        cout<<"a";
+    cout<<system->AccessPathName("~/Desktop");
 }
