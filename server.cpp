@@ -22,6 +22,7 @@ using namespace std;
 map<int,string> username_storage;
 map<int,int> fds_data;
 int new_port=Local_Port+1;
+
 string exec(const char* cmd);
 inline bool exists_file(const string& name);
 
@@ -130,7 +131,7 @@ private:
         }
     }
 };
-
+Config config_data = Config("config.json");
 class Client{
 public:
     Client(string _username, string _password, bool _admin, int _size,string path){
@@ -154,7 +155,9 @@ public:
     void log_out(){
         this->logedIn = false;
     }
-
+    bool is_admin(){
+        return this->admin;
+    }
     string get_username(){
         return this->username;
     }
@@ -272,7 +275,19 @@ vector<string> seperate_to_vector(char comm[]){//Get char array and seperate it 
     }
     return command;
 }
+bool is_permissionFiles(Client* client,string files_name){
+    if(client->is_admin())
+        return false;
+    vector<string> files=config_data.get_files();
+    for(int i=0;i<files.size();i++){
+        cout<<files[i]<<"a"<<files_name<<endl;
+        if(files_name==files[i])
+            return true;
+    }
+    return false;
 
+    
+}
 bool check_username(string username,int fd){
     for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].get_username() == username){
@@ -344,6 +359,10 @@ void mkd_command(vector<string> command,Client* client){
     send_message(client->get_fd_id(),result);
 }
 void dele_command(vector<string> command,Client* client){
+    if(is_permissionFiles(client,command[2])){
+        send_message(client->get_fd_id(),"Permission denied.");
+        return;
+    }
     string str= client->get_path() +"&& rm ";
     if(client->get_path().size()==0)
         str="rm ";
@@ -378,6 +397,7 @@ string erase_cd(string command){
     return command;
 }
 void cwd_command(vector<string> command,Client* client){
+    
     if(command.size()==1){
         client->back_to_home();
         return;
@@ -404,10 +424,28 @@ void cwd_command(vector<string> command,Client* client){
     }
 }
 void rename_command(vector<string> command,Client* client){
+    if(is_permissionFiles(client,command[1])){
+        send_message(client->get_fd_id(),"Permission denied.");
+        return;
+    }
     string str=client->get_path() + " && mv "+ command[1] + " " + command[2];
+    if(client->get_path().size()==0)
+        str="mv "+command[1] + " " + command[2];
     exec(str.c_str());
     char massage[] = "250: Successful change.";
     send_message(client->get_fd_id(), massage);
+}
+void help_command(vector<string> command,int i){
+    send_message(i,"user <Your username> : To login.\n");
+    send_message(i,"pass <Your password> : Your acount needs password to loged in.\n");
+    send_message(i,"pwd : Shows your directory path.\n");
+    send_message(i,"cwd <Directory path>: Used to change directory.\n");
+    send_message(i,"mkd <Directory path> : Makes directory in directory path which you wrote.\n");
+    send_message(i,"ls : Shows all directories and files which are in current path.\n");
+    send_message(i,"retr <Files name> : If you have permission, this command download files.\n");
+    send_message(i,"rename <Current name> <New name> : If you have permission, this command renames file or directory.\n");
+    send_message(i,"dele -f/-d <file name/ directory name> : If you have permission, this command deletes file or directory.");
+
 }
 bool is_loged_in(int fd){
     for(int i=0;i<int(Clients.size());i++){
@@ -439,7 +477,6 @@ int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
     fd_set master_set, working_set;
-    Config config_data = Config("config.json");
     load_clients(config_data.get_users());
     server_fd = setupServer(config_data.get_command_port());
     server_data = setupServer(config_data.get_data_port());
@@ -486,6 +523,8 @@ int main(int argc, char const *argv[]) {
                         user_command(command,i);
                     else if(command[0]== "pass")
                         pass_command(command,i);
+                    else if(command[0]=="help")
+                        help_command(command,i);
                     Client* client=get_Client(i);
                     if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
                         char massage[] = "332: Need account for login.";
