@@ -77,9 +77,9 @@ int connectServer(int port) {
 }
 
 void alarm_handler(int sig){
-
-}
     
+}
+
 int main(int argc, char const *argv[]) {
     int fd,fd_data;
     int my_id;
