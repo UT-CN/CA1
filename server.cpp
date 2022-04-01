@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <vector>
 #include <iostream>
 #include <map>
@@ -22,6 +23,8 @@ map<int,string> username_storage;
 map<int,int> fds_data;
 int new_port=Local_Port+1;
 
+string exec(const char* cmd);
+inline bool exists_file(const string& name);
 
 class User{
 public:
@@ -128,17 +131,17 @@ private:
         }
     }
 };
-
+Config config_data = Config("config.json");
 class Client{
 public:
-    Client(string _username, string _password, bool _admin, int _size){
+    Client(string _username, string _password, bool _admin, int _size,string path){
         this->password = _password;
         this->username = _username;
         this->admin = _admin;
         this->size = _size;
         this->logedIn = false;
         // todo:
-        curr_position = "ADD server position here"
+        curr_position = "";
     }
 
     void set_fd(int fd){
@@ -152,7 +155,9 @@ public:
     void log_out(){
         this->logedIn = false;
     }
-
+    bool is_admin(){
+        return this->admin;
+    }
     string get_username(){
         return this->username;
     }
@@ -165,10 +170,30 @@ public:
         return this->fd_id;
     }
 
+    string get_path(){
+        if(curr_position.size()==0)
+            return "";
+        string path= curr_position;
+        path.erase(path.size()-1);
+        return path;
+    }
     bool isLogedIn(){
         return this->logedIn;
     }
-
+    void update_position(string new_path){//Add new path to curr path.
+        curr_position=curr_position+ new_path + "/";
+    }
+    void back_to_home(){//Return to original directory
+        curr_position="";
+    }
+    void set_position(){
+        curr_position="cd " ; 
+    }
+    void check_path_is_exists(){ //If there is no current path, it goes back to the original directory.
+        if(curr_position.size()!=0 && !exists_file(curr_position)){
+            curr_position="";
+        }
+    }
 private:
     string password;
     string username;
@@ -180,8 +205,11 @@ private:
 };
 
 vector<Client> Clients;
-
-string exec(const char* cmd) {
+inline bool exists_file(const string& name){
+  struct stat buffer;   
+  return (stat(name.c_str(), &buffer) == 0); 
+}
+string exec(const char* cmd) {//Write commands in terminal and return the answer.
     char buffer[128];
     string result = "";
     FILE* pipe = popen(cmd, "r");
@@ -230,7 +258,7 @@ void send_message(int id,char str[1024]){
     send(id,str,strlen(str),0);
 }
 
-vector<string> seperate_to_vector(char comm[]){
+vector<string> seperate_to_vector(char comm[]){//Get char array and seperate it with spaceses and return vector.
     vector<string> command;
     string temp;
     for(int i=0; i< int(strlen(comm)); i++){
@@ -247,7 +275,19 @@ vector<string> seperate_to_vector(char comm[]){
     }
     return command;
 }
+bool is_permissionFiles(Client* client,string files_name){
+    if(client->is_admin())
+        return false;
+    vector<string> files=config_data.get_files();
+    for(int i=0;i<files.size();i++){
+        cout<<files[i]<<"a"<<files_name<<endl;
+        if(files_name==files[i])
+            return true;
+    }
+    return false;
 
+    
+}
 bool check_username(string username,int fd){
     for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].get_username() == username){
@@ -269,20 +309,6 @@ bool check_password(string password,int fd,string username){
     return false;
 }
 
-bool is_loged_in(int fd){
-    for(int i=0;i<int(Clients.size());i++){
-        if(Clients[i].get_fd_id() == fd && Clients[i].isLogedIn())
-            return true;
-    }
-    return false;
-}
-
-void log_out(int fd){
-    for(int i=0;i<int(Clients.size());i++){
-        Clients[i].log_out();
-        return;
-    }
-}
 
 void user_command(vector<string> command,int i){
     if(check_username(command[1],i)){
@@ -310,110 +336,140 @@ void pass_command(vector<string> command,int i){
     }
 }
 
-void pwd_command(vector<string> command,int i){
-    if(is_loged_in(i)){
-        string str=exec("pwd");
-        str="257: "+str;
-        char* result=const_cast<char*>(str.c_str());
-        send_message(i,result);
-    }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
+void pwd_command(vector<string> command,Client* client){
+    string str;
+    if(client->get_path().size()==0)
+        str="pwd ";
+    else 
+        str=client->get_path() +" && pwd ";
+    cout<<str<<endl;
+    str=exec(str.c_str());
+    str="257: "+str;
+    char* result=const_cast<char*>(str.c_str());
+    send_message(client->get_fd_id(),result);
 }
 
-void mkd_command(vector<string> command,int i){
-    if(is_loged_in(i)){
-        string str="mkdir "+ command[1];
-        str=exec(str.c_str());
-        str="257: "+ command[1] +" created.";
-        char* result=const_cast<char*>(str.c_str());
-
-        send_message(i,result);
-    }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
+void mkd_command(vector<string> command,Client* client){
+    string str= client->get_path() +" && mkdir "+ command[1];
+    if(client->get_path().size()==0)
+        str="mkdir " + command[1];
+    str=exec(str.c_str());
+    str="257: "+ command[1] +" created.";
+    char* result=const_cast<char*>(str.c_str());
+    send_message(client->get_fd_id(),result);
 }
-void dele_command(vector<string> command,int i){
-    string str= "rm ";
-    if(is_loged_in(i)){
-        if(command[1]=="-d")
-            str+="-d ";
-        str+=command[2];
-        str=exec(str.c_str());
-        str="250: "+ command[2] + " deleted.";
-        char* result=const_cast<char*>(str.c_str());
-        send_message(i,result);
+void dele_command(vector<string> command,Client* client){
+    if(is_permissionFiles(client,command[2])){
+        send_message(client->get_fd_id(),"Permission denied.");
+        return;
     }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
+    string str= client->get_path() +"&& rm ";
+    if(client->get_path().size()==0)
+        str="rm ";
+    if(command[1]=="-d")
+        str+="-r ";
+    str+=command[2];
+    str=exec(str.c_str());
+    str="250: "+ command[2] + " deleted.";
+    char* result=const_cast<char*>(str.c_str());
+    send_message(client->get_fd_id(),result);
 }
 
-void ls_command(vector<string> command, int i){
-    if(is_loged_in(i)){
-        string str=exec("ls");
-        char massage[] = "226: List transfer done.";
-        send_message(i, massage);
-        char* result=const_cast<char*>(str.c_str());
-        send_message(fds_data[i],result);
+void ls_command(vector<string> command,Client* client){
+    string str= client->get_path() +" && ls";
+    if(client->get_path().size()==0)
+        str="ls ";
+    str=exec(str.c_str());
+    char massage[] = "226: List transfer done.";
+    send_message(client->get_fd_id(), massage);
+    char* result=const_cast<char*>(str.c_str());
+    send_message(fds_data[client->get_fd_id()],result);
+
+}
+Client* get_Client(int id){
+    for(int i=0;i<Clients.size();i++)
+        if(Clients[i].get_fd_id()==id)
+            return &Clients[i];
+    return NULL;
+}
+string erase_cd(string command){
+    command=command.erase(0,3);
+    return command;
+}
+void cwd_command(vector<string> command,Client* client){
+    
+    if(command.size()==1){
+        client->back_to_home();
+        return;
+    }
+    if(client->get_path().size()==0 && command[1]==".."){
+       send_message(client->get_fd_id(), "Permission denied.");
+       return;
+    }
+    string str=erase_cd(client->get_path());
+    if(client->get_path().size()!=0)
+        str+= "/";
+    str+=command[1];
+    cout<<str;
+    if(!exists_file(str)){
+        send_message(client->get_fd_id(), "File dosen't exists.");
+        return;
     }
     else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
-}
-
-void cwd_command(vector<string> command,int i){
-    string str="cd ";
-    if(is_loged_in(i)){
-        if(command.size()>1)
-            str+=command[1];
-        system("cd");
+        if(client->get_path().size()==0)
+            client->set_position();
+        client->update_position(command[1]);
         char massage[] = "250: Successful change.";
-        send_message(i, massage);
-    }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
+        send_message(client->get_fd_id(), massage);
     }
 }
-
-void rename_command(vector<string> command,int i){
-    string str="mv "+ command[1] + " " + command[2];
-    if(is_loged_in(i)){
-        exec(str.c_str());
-        char massage[] = "250: Successful change.";
-        send_message(i, massage);
+void rename_command(vector<string> command,Client* client){
+    if(is_permissionFiles(client,command[1])){
+        send_message(client->get_fd_id(),"Permission denied.");
+        return;
     }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
+    string str=client->get_path() + " && mv "+ command[1] + " " + command[2];
+    if(client->get_path().size()==0)
+        str="mv "+command[1] + " " + command[2];
+    exec(str.c_str());
+    char massage[] = "250: Successful change.";
+    send_message(client->get_fd_id(), massage);
 }
+void help_command(vector<string> command,int i){
+    send_message(i,"user <Your username> : To login.\n");
+    send_message(i,"pass <Your password> : Your acount needs password to loged in.\n");
+    send_message(i,"pwd : Shows your directory path.\n");
+    send_message(i,"cwd <Directory path>: Used to change directory.\n");
+    send_message(i,"mkd <Directory path> : Makes directory in directory path which you wrote.\n");
+    send_message(i,"ls : Shows all directories and files which are in current path.\n");
+    send_message(i,"retr <Files name> : If you have permission, this command download files.\n");
+    send_message(i,"rename <Current name> <New name> : If you have permission, this command renames file or directory.\n");
+    send_message(i,"dele -f/-d <file name/ directory name> : If you have permission, this command deletes file or directory.");
 
-void quit_command(vector<string> command,int i){
-    if(is_loged_in(i)){
-        log_out(i);
+}
+bool is_loged_in(int fd){
+    for(int i=0;i<int(Clients.size());i++){
+        if(Clients[i].get_fd_id() == fd && Clients[i].isLogedIn())
+            return true;
+    }
+    return false;
+}
+void quit_command(vector<string> command,Client* client){
+        client->log_out();
         char massage[] = "221: Successful Quit.";
-        send_message(i, massage);
-    }
-    else{
-        char massage[] = "332: Need account for login.";
-        send_message(i, massage);
-    }
+        send_message(client->get_fd_id(), massage);
 }
 
 void load_clients(vector<User*> users){
+    string path=exec("pwd");
+    path.erase(0,1);
+    path="cd && cd "+path;
     for(int i = 0; i < int(users.size()); i++){
         Clients.push_back(Client(users[i]->get_name(), 
                                  users[i]->get_password(),
                                  users[i]->is_admin(),
-                                 users[i]->get_size()));
+                                 users[i]->get_size(),
+                                 path));
     }
 }
 
@@ -421,7 +477,6 @@ int main(int argc, char const *argv[]) {
     int server_fd, command_fd,data_fd, max_sd,server_data;
     char buffer[1024] = {0};
     fd_set master_set, working_set;
-    Config config_data = Config("config.json");
     load_clients(config_data.get_users());
     server_fd = setupServer(config_data.get_command_port());
     server_data = setupServer(config_data.get_data_port());
@@ -468,27 +523,38 @@ int main(int argc, char const *argv[]) {
                         user_command(command,i);
                     else if(command[0]== "pass")
                         pass_command(command,i);
-                    else if(command[0]=="pwd")
-                        pwd_command(command,i);
+                    else if(command[0]=="help")
+                        help_command(command,i);
+                    Client* client=get_Client(i);
+                    if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
+                        char massage[] = "332: Need account for login.";
+                        send_message(i, massage);
+                        continue;
+                    }
+                    //client->check_path_is_exists();
+                    if(command[0]=="pwd")
+                        pwd_command(command,client);
                     else if(command[0]=="mkd")
-                        mkd_command(command,i);
+                        mkd_command(command,client);
                     else if(command[0]=="dele")
-                        dele_command(command,i);
+                        dele_command(command,client);
                     else if(command[0]=="ls")
-                        ls_command(command,i);
+                        ls_command(command,client);
                     else if(command[0]=="cwd")
-                        cwd_command(command,i);
+                        cwd_command(command,client);
                     else if(command[0]=="rename")
-                        rename_command(command,i);
+                        rename_command(command,client);
                     else if(command[0]=="quit")
-                        quit_command(command,i);
-                    else{
+                        quit_command(command,client);
+                    /*else{
                         /////////////////////
                         cout << "client " << i << ":" << buffer << endl;
                         ////////////////
-                        char massage[] = "501:Syntax error in parameters or arguments.";
-                        send_message(i, massage);
-                    }
+                        if(command.size()!=0){
+                            char massage[] = "501:Syntax error in parameters or arguments.";
+                            send_message(i, massage);
+                        }
+                    }*/
                     memset(buffer, 0, 1024);
                     command.clear();
                 }
