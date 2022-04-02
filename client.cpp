@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <cstdlib>
 #include <string>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -96,6 +97,9 @@ int main(int argc, char const *argv[]) {
     cout << "Your id is: " << my_id << endl;
     signal(SIGALRM, alarm_handler);
     siginterrupt(SIGALRM, 1);
+    bool file_transfer = false;
+    bool data_transfer = false;
+    //char file_transfer_message[] = "226: Successful Download.";
     while (1) {
         alarm(1);
         recv(fd,buffer,1024,0);
@@ -105,10 +109,21 @@ int main(int argc, char const *argv[]) {
         alarm(0);
         if(strlen(buffer)!=0){
             cout << buffer << endl;
+            if(buffer[0] == '2' && buffer[1] == '2' && buffer[2] == '6'){
+                data_transfer = true;
+                if(buffer[5] == 'S')
+                    file_transfer = true;
+                else
+                    file_transfer = false;
+            }
+            else
+                data_transfer = false;
             memset(buffer,0,1024);
         }
         if(strlen(buffer_data)!=0){
-            cout << "Data: " << buffer_data << endl;
+            if(data_transfer && !file_transfer){
+                cout << "Data: " << buffer_data << endl;
+            }
             memset(buffer_data,0,1024);
         }
         alarm(2);

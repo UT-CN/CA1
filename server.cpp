@@ -486,7 +486,11 @@ void retr_command(vector<string> command,Client* client){
         return;
     }
 
-    string file_path = client->get_path() + "/"+ command[1];
+    string file_path;
+    if(client->get_path() == "")
+        file_path = command[1];
+    else
+        file_path = erase_cd(client->get_path()) + "/"+ command[1];
     if(!exists_file(file_path)){
         char message[] = "500: Error";
         send_message(client->get_fd_id(), message);
@@ -502,6 +506,7 @@ void retr_command(vector<string> command,Client* client){
         return;
     }
 
+    in_file.seekg(0, ios::beg);
     while(in_file.eof() == false){
         char buff[BUFFER_SIZE] = {0};
         in_file.read(buff, BUFFER_SIZE);
