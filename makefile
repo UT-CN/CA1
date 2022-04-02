@@ -11,10 +11,10 @@ server.out: server.o jsoncpp.o
 client.out: client.o jsoncpp.o
 	$(CC) $(CFLAGS) -o client.out client.o jsoncpp.o
 
-server.o: server.cpp
+server.o: server.cpp server.hpp
 	$(CC) $(CFLAGS) -c server.cpp
 
-client.o: client.cpp
+client.o: client.cpp client.hpp
 	$(CC) $(CFLAGS) -c client.cpp
 
 jsoncpp.o: jsoncpp/*

@@ -1,232 +1,105 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <vector>
-#include <iostream>
-#include <map>
-#include <cstdlib>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <ctime>
-#include "jsoncpp/dist/json/json.h"
+#include "server.hpp"
 
-#define BUFFER_SIZE 1024
-
-using namespace std;
-
-map<int,string> username_storage;
-map<int,int> fds_data;
-
-string exec(const char* cmd);
-inline bool exists_file(const string& name);
-
-class User{
-public:
-    User(Json::Value values){
-        this->name = values["user"].asString();
-        this->password = values["password"].asString();
-        string temp = values["admin"].asString();
-        if(temp == "true")
-            this->admin = true;
-        else
-            this->admin = false;
-
-        stringstream size_value;
-        size_value << values["size"].asString();
-        size_value >> this->size;
-    }
-
-    string get_name(){
-        return this->name;
-    }
-
-    string get_password(){
-        return this->password;
-    }
-
-    int get_size(){
-        return this->size;
-    }
-
-    bool is_admin(){
-        return this->admin;
-    }
-
-private:
-    string name;
-    string password;
-    bool admin;
-    float size;
-};
-
-class Config{
-public:
-    Config(string address){
-        Json::Reader reader;  //for reading the data
-        Json::Value values; //for modifying and storing new values
-
-        //opening file using fstream
-        ifstream file(address);
-
-        // check if there is any error is getting data from the json file
-        if (!reader.parse(file, values)) {
-            cout << reader.getFormattedErrorMessages();
-            exit(1);
-        }
-        this->set_values(values);
-    }
-
-    ~Config(){
-        for(int i = 0; i < int((this->users).size()); i++){
-            delete this->users[i];
-        }
-    }
-
-    int get_command_port(){
-        return this->command_port;
-    }
-
-    int get_data_port(){
-        return this->data_port;
-    }
-
-    vector<User*> get_users(){
-        return this->users;
-    }
-
-    vector<string> get_files(){
-        return this->files;
-    }
-
-private:
-    int command_port;
-    int data_port;
-    vector<User*> users;
-    vector<string> files;
-
-    void set_values(Json::Value values){
-        stringstream ssc, ssd;
-        ssc << values["commandChannelPort"];
-        ssc >> this->command_port;
-
-        ssd << values["dataChannelPort"];
-        ssd >> this->data_port;
-
-        Json::Value users = values["users"];
-
-        for(int i = 0; i < int(users.size()); i++){
-            this->users.push_back(new User(users[i]));
-        }
-
-        Json::Value files = values["files"];
-        for(int i = 0; i < int(files.size()); i++){
-            string file = files[i].asString();
-            this->files.push_back(file);
-        }
-    }
-};
 Config config_data = Config("config.json");
-class Client{
-public:
-    Client(string _username, string _password, bool _admin, float _size,string path){
-        this->password = _password;
-        this->username = _username;
-        this->admin = _admin;
-        this->size = _size*1024; // convert size from kbyte to byte
-        this->logedIn = false;
-        this->curr_position = "";
-    }
 
-    void set_fd(int fd){
-        this->fd_id = fd;
-    }
+int main(int argc, char const *argv[]) {
+    int server_fd, command_fd,data_fd, max_sd,server_data;
+    char buffer[BUFFER_SIZE] = {0};
+    fd_set master_set, working_set;
+    load_clients(config_data.get_users());
+    server_fd = setupServer(config_data.get_command_port());
+    server_data = setupServer(config_data.get_data_port());
+    ofstream log_file("log.txt", ios::app); // open filename.txt in append mode
 
-    void log_in(){
-        this->logedIn = true;
-    }
+    FD_ZERO(&master_set);
+    max_sd = server_fd;
+    FD_SET(server_fd, &master_set);
 
-    void log_out(){
-        this->logedIn = false;
-    }
-    bool is_admin(){
-        return this->admin;
-    }
-    string get_username(){
-        return this->username;
-    }
+    cout << "Server is running" << endl;
+    char buff[BUFFER_SIZE]={0};
+    while (1) {
+        working_set = master_set;
+        select(max_sd + 1, &working_set, NULL, NULL, NULL);
 
-    string get_password(){
-        return this->password;
-    }
-
-    int get_fd_id(){
-        return this->fd_id;
-    }
-
-    int get_size(){
-        return this->size;
-    }
-
-    string get_path(){
-        if(curr_position.size()==0)
-            return "";
-        string path= curr_position;
-        path.erase(path.size()-1);
-        return path;
-    }
-
-    bool isLogedIn(){
-        return this->logedIn;
-    }
-
-    void update_position(string new_path){//Add new path to curr path.
-        if(new_path == ".."){
-            curr_position.pop_back();
-            while(curr_position != ""){
-                if(curr_position.back() == '/')
-                    break;
-                curr_position.pop_back();
+        for (int i = 0; i <= max_sd; i++) {
+            if (FD_ISSET(i, &working_set)) {
+                
+                if (i == server_fd) {  // new clinet
+                    command_fd = acceptClient(server_fd);
+                    data_fd = acceptClient(server_data);
+                    sprintf(buff, "%d is your id\n", command_fd);
+                    send(command_fd, buff, BUFFER_SIZE, 0);
+                    memset(buffer, 0, BUFFER_SIZE);
+                    FD_SET(command_fd, &master_set);
+                    if (command_fd > max_sd)
+                        max_sd = command_fd;
+                    cout << "New client connected. fd = " << command_fd << endl;
+                    char message[] = "Wellcome. Please enter your Username:";
+                    send_message(command_fd, message);
+                    fds_data[command_fd]=data_fd;
+                }
+                
+                else { // client sending msg
+                    int bytes_received;
+                    bytes_received = recv(i , buffer, BUFFER_SIZE, 0);
+                    if (bytes_received == 0) { // EOF
+                        cout << "client fd = " << i << " closed." << endl;
+                        close(i);
+                        FD_CLR(i, &master_set);
+                        continue;
+                    }
+                    vector <string> command=seperate_to_vector(buffer);
+                    bool valid_command = false;
+                    if(command[0] == "user"){
+                        user_command(command, i);
+                        valid_command = true;
+                    }
+                    else if(command[0] == "pass"){
+                        pass_command(command, i, log_file);
+                        valid_command = true;
+                    }
+                    else if(command[0] == "help"){
+                        help_command(command, i);
+                        valid_command = true;
+                    }
+                    Client* client = get_Client(i);
+                    if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
+                        char message[] = "332: Need account for login.";
+                        send_message(i, message);
+                        continue;
+                    }
+                    if(command[0] == "pwd")
+                        pwd_command(command, client);
+                    else if(command[0] == "mkd")
+                        mkd_command(command, client, log_file);
+                    else if(command[0] == "dele")
+                        dele_command(command, client, log_file);
+                    else if(command[0] == "ls")
+                        ls_command(command, client);
+                    else if(command[0] == "cwd")
+                        cwd_command(command, client);
+                    else if(command[0] == "rename")
+                        rename_command(command, client, log_file);
+                    else if(command[0] == "retr")
+                        retr_command(command, client, log_file);
+                    else if(command[0] == "quit")
+                        quit_command(command, client, log_file, i);
+                    else{
+                        if(command.size()!=0 && !valid_command){
+                            char message[] = "501:Syntax error in parameters or arguments.";
+                            send_message(i, message);
+                        }
+                    }
+                    memset(buffer, 0, BUFFER_SIZE);
+                    command.clear();
+                }
             }
         }
-        else
-            curr_position=curr_position+ new_path + "/";
+
     }
 
-    void back_to_home(){//Return to original directory
-        curr_position="";
-    }
-
-    void set_position(){
-        curr_position="cd " ; 
-    }
-
-    void check_path_is_exists(){ //If there is no current path, it goes back to the original directory.
-        if(curr_position.size()!=0 && !exists_file(curr_position)){
-            curr_position="";
-        }
-    }
-
-    void reduce_size(int downloaded_size){
-        this->size -= downloaded_size;
-    }
-
-private:
-    string password;
-    string username;
-    bool admin;
-    int size;
-    bool logedIn;
-    int fd_id;
-    string curr_position;
-};
-
-vector<Client> Clients;
+    return 0;
+}
 
 inline bool exists_file(const string& name){
   struct stat buffer;   
@@ -311,10 +184,10 @@ vector<string> seperate_to_vector(char comm[]){//Get char array and seperate it 
             command.push_back(temp);
             temp.clear();
         }
-        
     }
     return command;
 }
+
 bool is_permissionFiles(Client* client,string files_name){
     if(client->is_admin())
         return false;
@@ -324,9 +197,8 @@ bool is_permissionFiles(Client* client,string files_name){
             return true;
     }
     return false;
-
-    
 }
+
 bool check_username(string username,int fd){
     for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].get_username() == username){
@@ -350,7 +222,6 @@ bool check_password(string password, int fd, string username, ofstream& log_file
     }
     return false;
 }
-
 
 void user_command(vector<string> command,int i){
     if(command.size() < 2 || command.size() > 2){
@@ -676,102 +547,94 @@ void load_clients(vector<User*> users){
     }
 }
 
-int main(int argc, char const *argv[]) {
-    int server_fd, command_fd,data_fd, max_sd,server_data;
-    char buffer[BUFFER_SIZE] = {0};
-    fd_set master_set, working_set;
-    load_clients(config_data.get_users());
-    server_fd = setupServer(config_data.get_command_port());
-    server_data = setupServer(config_data.get_data_port());
-    ofstream log_file("log.txt", ios::app); // open filename.txt in append mode
+User::User(Json::Value values){
+    this->name = values["user"].asString();
+    this->password = values["password"].asString();
+    string temp = values["admin"].asString();
+    if(temp == "true")
+        this->admin = true;
+    else
+        this->admin = false;
 
-    FD_ZERO(&master_set);
-    max_sd = server_fd;
-    FD_SET(server_fd, &master_set);
+    stringstream size_value;
+    size_value << values["size"].asString();
+    size_value >> this->size;
+}
 
-    cout << "Server is running" << endl;
-    char buff[BUFFER_SIZE]={0};
-    while (1) {
-        working_set = master_set;
-        select(max_sd + 1, &working_set, NULL, NULL, NULL);
+Config::Config(string address){
+    Json::Reader reader;  //for reading the data
+    Json::Value values; //for modifying and storing new values
 
-        for (int i = 0; i <= max_sd; i++) {
-            if (FD_ISSET(i, &working_set)) {
-                
-                if (i == server_fd) {  // new clinet
-                    command_fd = acceptClient(server_fd);
-                    data_fd = acceptClient(server_data);
-                    sprintf(buff, "%d is your id\n", command_fd);
-                    send(command_fd, buff, BUFFER_SIZE, 0);
-                    memset(buffer, 0, BUFFER_SIZE);
-                    FD_SET(command_fd, &master_set);
-                    if (command_fd > max_sd)
-                        max_sd = command_fd;
-                    cout << "New client connected. fd = " << command_fd << endl;
-                    char message[] = "Wellcome. Please enter your Username:";
-                    send_message(command_fd, message);
-                    fds_data[command_fd]=data_fd;
-                }
-                
-                else { // client sending msg
-                    int bytes_received;
-                    bytes_received = recv(i , buffer, BUFFER_SIZE, 0);
-                    if (bytes_received == 0) { // EOF
-                        cout << "client fd = " << i << " closed." << endl;
-                        close(i);
-                        FD_CLR(i, &master_set);
-                        continue;
-                    }
-                    vector <string> command=seperate_to_vector(buffer);
-                    bool valid_command = false;
-                    if(command[0] == "user"){
-                        user_command(command, i);
-                        valid_command = true;
-                    }
-                    else if(command[0] == "pass"){
-                        pass_command(command, i, log_file);
-                        valid_command = true;
-                    }
-                    else if(command[0] == "help"){
-                        help_command(command, i);
-                        valid_command = true;
-                    }
-                    Client* client = get_Client(i);
-                    if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
-                        char message[] = "332: Need account for login.";
-                        send_message(i, message);
-                        continue;
-                    }
-                    //client->check_path_is_exists();
-                    if(command[0] == "pwd")
-                        pwd_command(command, client);
-                    else if(command[0] == "mkd")
-                        mkd_command(command, client, log_file);
-                    else if(command[0] == "dele")
-                        dele_command(command, client, log_file);
-                    else if(command[0] == "ls")
-                        ls_command(command, client);
-                    else if(command[0] == "cwd")
-                        cwd_command(command, client);
-                    else if(command[0] == "rename")
-                        rename_command(command, client, log_file);
-                    else if(command[0] == "retr")
-                        retr_command(command, client, log_file);
-                    else if(command[0] == "quit")
-                        quit_command(command, client, log_file, i);
-                    else{
-                        if(command.size()!=0 && !valid_command){
-                            char message[] = "501:Syntax error in parameters or arguments.";
-                            send_message(i, message);
-                        }
-                    }
-                    memset(buffer, 0, BUFFER_SIZE);
-                    command.clear();
-                }
-            }
-        }
+    //opening file using fstream
+    ifstream file(address);
 
+    // check if there is any error is getting data from the json file
+    if (!reader.parse(file, values)) {
+        cout << reader.getFormattedErrorMessages();
+        exit(1);
+    }
+    this->set_values(values);
+}
+
+Config::~Config(){
+    for(int i = 0; i < int((this->users).size()); i++){
+        delete this->users[i];
+    }
+}
+
+void Config::set_values(Json::Value values){
+    stringstream ssc, ssd;
+    ssc << values["commandChannelPort"];
+    ssc >> this->command_port;
+
+    ssd << values["dataChannelPort"];
+    ssd >> this->data_port;
+
+    Json::Value users = values["users"];
+
+    for(int i = 0; i < int(users.size()); i++){
+        this->users.push_back(new User(users[i]));
     }
 
-    return 0;
+    Json::Value files = values["files"];
+    for(int i = 0; i < int(files.size()); i++){
+        string file = files[i].asString();
+        this->files.push_back(file);
+    }
+}
+
+Client::Client(string _username, string _password, bool _admin, float _size,string path){
+    this->password = _password;
+    this->username = _username;
+    this->admin = _admin;
+    this->size = _size*1024; // convert size from kbyte to byte
+    this->logedIn = false;
+    this->curr_position = "";
+}
+
+string Client::get_path(){
+    if(curr_position.size()==0)
+        return "";
+    string path= curr_position;
+    path.erase(path.size()-1);
+    return path;
+}
+
+void Client::update_position(string new_path){//Add new path to curr path.
+    if(new_path == ".."){
+        curr_position.pop_back();
+        while(curr_position != ""){
+            if(curr_position.back() == '/')
+                break;
+            curr_position.pop_back();
+        }
+    }
+    else
+        curr_position=curr_position+ new_path + "/";
+}
+
+void Client::check_path_is_exists(){ //If there is no current path, it goes back to the original directory.
+    if(curr_position.size()!=0 && !exists_file(curr_position)){
+        curr_position="";
+    }
 }
