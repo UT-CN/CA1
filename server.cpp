@@ -13,6 +13,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <ctime>
 #include "jsoncpp/dist/json/json.h"
 
 #define BUFFER_SIZE 1024
@@ -185,7 +186,16 @@ public:
     }
 
     void update_position(string new_path){//Add new path to curr path.
-        curr_position=curr_position+ new_path + "/";
+        if(new_path == ".."){
+            curr_position.pop_back();
+            while(curr_position != ""){
+                if(curr_position.back() == '/')
+                    break;
+                curr_position.pop_back();
+            }
+        }
+        else
+            curr_position=curr_position+ new_path + "/";
     }
 
     void back_to_home(){//Return to original directory
@@ -238,6 +248,22 @@ string exec(const char* cmd) {//Write commands in terminal and return the answer
     }
     pclose(pipe);
     return result;
+}
+
+void write_to_file(ofstream& file, char* data){
+    // current date/time based on current system
+    time_t now = time(0);
+
+    // convert now to string form
+    char* dt = ctime(&now);
+
+    // write time and data in file
+    file << dt << "   --> " << data << endl;
+}
+
+string erase_cd(string command){
+    command=command.erase(0,3);
+    return command;
 }
 
 int setupServer(int port) {
@@ -294,7 +320,6 @@ bool is_permissionFiles(Client* client,string files_name){
         return false;
     vector<string> files=config_data.get_files();
     for(int i=0; i<int(files.size()); i++){
-        cout<<files[i]<<"a"<<files_name<<endl;
         if(files_name==files[i])
             return true;
     }
@@ -305,18 +330,21 @@ bool is_permissionFiles(Client* client,string files_name){
 bool check_username(string username,int fd){
     for(int i=0;i<int(Clients.size());i++){
         if(Clients[i].get_username() == username){
-            username_storage[fd]=username;
+            username_storage[fd] = username;
             return true;
         }
     }
     return false;
 }
 
-bool check_password(string password,int fd,string username){
+bool check_password(string password, int fd, string username, ofstream& log_file){
     for(int i = 0; i < int(Clients.size()); i++){
         if(Clients[i].get_username() == username && Clients[i].get_password() == password){
             Clients[i].set_fd(fd);
             Clients[i].log_in();
+            char data[BUFFER_SIZE];
+            sprintf(data, "%s loged in.", Clients[i].get_username().c_str());
+            write_to_file(log_file, data);
             return true;
         }
     }
@@ -330,54 +358,75 @@ void user_command(vector<string> command,int i){
         send_message(i, message);
     }
     else{
-        char message[] = "Invalid username or password.";
+        char message[] = "430: Invalid username or password.";
         send_message(i, message);
     }
 }
 
-void pass_command(vector<string> command,int i){
+void pass_command(vector<string> command, int i, ofstream& log_file){
     if(username_storage.count(i)==0){
         char message[] = "503: Bad sequence of commands.";
         send_message(i, message);
     }
-    else if(check_password(command[1],i,username_storage[i])){
+    else if(check_password(command[1], i, username_storage[i], log_file)){
         char message[] = "230: User logged in, proceed. Logged out if appropriate.";
         send_message(i, message);
     }
     else{
-        char message[] = "Invalid username or password.";
+        char message[] = "430: Invalid username or password.";
         send_message(i, message);
     }
 }
 
-void pwd_command(vector<string> command,Client* client){
+void pwd_command(vector<string> command, Client* client){
     string str;
     if(client->get_path().size()==0)
-        str="pwd ";
+        str = "pwd ";
     else 
-        str=client->get_path() +" && pwd ";
-    cout<<str<<endl;
-    str=exec(str.c_str());
-    str="257: "+str;
-    char* result=const_cast<char*>(str.c_str());
-    send_message(client->get_fd_id(),result);
+        str = client->get_path() + " && pwd ";
+    str = exec(str.c_str());
+    str = "257: "+str;
+    char* result = const_cast<char*>(str.c_str());
+    send_message(client->get_fd_id(), result);
 }
 
-void mkd_command(vector<string> command,Client* client){
+void mkd_command(vector<string> command, Client* client, ofstream& log_file){
     string str= client->get_path() +" && mkdir "+ command[1];
-    if(client->get_path().size()==0)
+    if(client->get_path().size() == 0)
         str="mkdir " + command[1];
     str=exec(str.c_str());
     str="257: "+ command[1] +" created.";
     char* result=const_cast<char*>(str.c_str());
     send_message(client->get_fd_id(),result);
+
+    // write in log file
+    char data[BUFFER_SIZE];
+    string location = "/";
+    if(client->get_path().size() != 0)
+        location = erase_cd(client->get_path());
+    sprintf(data, "%s makes directory : %s in location : %s.",
+            client->get_username().c_str(), command[1].c_str(), location.c_str());
+    write_to_file(log_file, data);
 }
-void dele_command(vector<string> command,Client* client){
+
+void dele_command(vector<string> command, Client* client, ofstream& log_file){
     if(is_permissionFiles(client,command[2])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(),message);
         return;
     }
+
+    // check file existing
+    string path = erase_cd(client->get_path());
+    if(client->get_path().size()!=0)
+        path += "/";
+    path += command[2];
+    if(!exists_file(path)){
+        char message[] = "500: Error";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+
     string str= client->get_path() +"&& rm ";
     if(client->get_path().size()==0)
         str="rm ";
@@ -388,6 +437,11 @@ void dele_command(vector<string> command,Client* client){
     str="250: "+ command[2] + " deleted.";
     char* result=const_cast<char*>(str.c_str());
     send_message(client->get_fd_id(),result);
+
+    // write in log file
+    char data[BUFFER_SIZE];
+    sprintf(data, "%s deletes : %s.", client->get_username().c_str(), path.c_str());
+    write_to_file(log_file, data);
 }
 
 void ls_command(vector<string> command,Client* client){
@@ -399,19 +453,16 @@ void ls_command(vector<string> command,Client* client){
     send_message(client->get_fd_id(), message);
     char* result=const_cast<char*>(str.c_str());
     send_message(fds_data[client->get_fd_id()],result);
-
 }
+
 Client* get_Client(int id){
     for(int i=0; i < int(Clients.size()); i++)
         if(Clients[i].get_fd_id()==id)
             return &Clients[i];
     return NULL;
 }
-string erase_cd(string command){
-    command=command.erase(0,3);
-    return command;
-}
-void cwd_command(vector<string> command,Client* client){
+
+void cwd_command(vector<string> command, Client* client){
     if(command.size()==1){
         client->back_to_home();
         return;
@@ -425,7 +476,6 @@ void cwd_command(vector<string> command,Client* client){
     if(client->get_path().size()!=0)
         str+= "/";
     str+=command[1];
-    cout<<str;
     if(!exists_file(str)){
         char message[] = "500: Error";
         send_message(client->get_fd_id(), message);
@@ -439,20 +489,43 @@ void cwd_command(vector<string> command,Client* client){
         send_message(client->get_fd_id(), message);
     }
 }
-void rename_command(vector<string> command,Client* client){
+
+void rename_command(vector<string> command, Client* client, ofstream& log_file){
     if(is_permissionFiles(client,command[1])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
         return;
     }
+
+    // check file existing
+    string path = erase_cd(client->get_path());
+    if(client->get_path().size()!=0)
+        path += "/";
+    path += command[1];
+    if(!exists_file(path)){
+        char message[] = "500: Error";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+
     string str=client->get_path() + " && mv "+ command[1] + " " + command[2];
     if(client->get_path().size()==0)
         str="mv "+command[1] + " " + command[2];
     exec(str.c_str());
     char message[] = "250: Successful change.";
     send_message(client->get_fd_id(), message);
+
+    // write in log file
+    char data[BUFFER_SIZE];
+    string location = "";
+    if(client->get_path().size() != 0)
+        location = erase_cd(client->get_path());
+    sprintf(data, "%s renames : %s to : %s in location : %s.",
+            client->get_username().c_str(), command[1].c_str(), command[2].c_str(), location.c_str());
+    write_to_file(log_file, data);
 }
-void help_command(vector<string> command,int i){
+
+void help_command(vector<string> command, int i){
     char message[] = "user <Your username> : To login.\n"
                      "pass <Your password> : Your acount needs password to loged in.\n"
                      "pwd : Shows your directory path.\n"
@@ -473,13 +546,20 @@ bool is_loged_in(int fd){
     }
     return false;
 }
-void quit_command(vector<string> command,Client* client){
+
+void quit_command(vector<string> command, Client* client, ofstream& log_file, int fd){
     client->log_out();
+    username_storage[fd] = "";
     char message[] = "221: Successful Quit.";
     send_message(client->get_fd_id(), message);
+
+    // write in log file
+    char data[BUFFER_SIZE];
+    sprintf(data, "%s loged out.", client->get_username().c_str());
+    write_to_file(log_file, data);
 }
 
-void retr_command(vector<string> command,Client* client){
+void retr_command(vector<string> command, Client* client, ofstream& log_file){
     if(is_permissionFiles(client,command[1])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
@@ -516,6 +596,12 @@ void retr_command(vector<string> command,Client* client){
 
     char message[] = "226: Successful Download.";
     send_message(client->get_fd_id(), message);
+
+    // write in log file
+    char data[BUFFER_SIZE];
+    sprintf(data, "%s downloads : %s with size : %d bytes and the remained size for this client is : %d bytes",
+            client->get_username().c_str(), file_path.c_str(), file_size_in_bytes, client->get_size());
+    write_to_file(log_file, data);
 }
 
 void load_clients(vector<User*> users){
@@ -538,6 +624,7 @@ int main(int argc, char const *argv[]) {
     load_clients(config_data.get_users());
     server_fd = setupServer(config_data.get_command_port());
     server_data = setupServer(config_data.get_data_port());
+    ofstream log_file("log.txt", ios::app); // open filename.txt in append mode
 
     FD_ZERO(&master_set);
     max_sd = server_fd;
@@ -578,41 +665,41 @@ int main(int argc, char const *argv[]) {
                     }
                     vector <string> command=seperate_to_vector(buffer);
                     bool valid_command = false;
-                    if(command[0]=="user"){
-                        user_command(command,i);
+                    if(command[0] == "user"){
+                        user_command(command, i);
                         valid_command = true;
                     }
-                    else if(command[0]== "pass"){
-                        pass_command(command,i);
+                    else if(command[0] == "pass"){
+                        pass_command(command, i, log_file);
                         valid_command = true;
                     }
-                    else if(command[0]=="help"){
-                        help_command(command,i);
+                    else if(command[0] == "help"){
+                        help_command(command, i);
                         valid_command = true;
                     }
-                    Client* client=get_Client(i);
+                    Client* client = get_Client(i);
                     if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
                         char message[] = "332: Need account for login.";
                         send_message(i, message);
                         continue;
                     }
                     //client->check_path_is_exists();
-                    if(command[0]=="pwd")
-                        pwd_command(command,client);
-                    else if(command[0]=="mkd")
-                        mkd_command(command,client);
-                    else if(command[0]=="dele")
-                        dele_command(command,client);
-                    else if(command[0]=="ls")
-                        ls_command(command,client);
-                    else if(command[0]=="cwd")
-                        cwd_command(command,client);
-                    else if(command[0]=="rename")
-                        rename_command(command,client);
-                    else if(command[0]=="retr")
-                        retr_command(command,client);
-                    else if(command[0]=="quit")
-                        quit_command(command,client);
+                    if(command[0] == "pwd")
+                        pwd_command(command, client);
+                    else if(command[0] == "mkd")
+                        mkd_command(command, client, log_file);
+                    else if(command[0] == "dele")
+                        dele_command(command, client, log_file);
+                    else if(command[0] == "ls")
+                        ls_command(command, client);
+                    else if(command[0] == "cwd")
+                        cwd_command(command, client);
+                    else if(command[0] == "rename")
+                        rename_command(command, client, log_file);
+                    else if(command[0] == "retr")
+                        retr_command(command, client, log_file);
+                    else if(command[0] == "quit")
+                        quit_command(command, client, log_file, i);
                     else{
                         if(command.size()!=0 && !valid_command){
                             char message[] = "501:Syntax error in parameters or arguments.";

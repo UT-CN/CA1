@@ -1,0 +1,70 @@
+Sat Apr  2 19:54:59 2022
+   --> Ali loged in.
+Sat Apr  2 19:55:03 2022
+   --> Mohsen loged in.
+Sat Apr  2 19:55:24 2022
+   --> Ali makes directory : ali in location : /.
+Sat Apr  2 19:57:26 2022
+   --> Mohsen downloads : test_file.txt with size : 2534 bytes and the remained size for this client is : 1023997466 bytes
+Sat Apr  2 19:58:10 2022
+   --> Ali downloads : ali/../config.json with size : 408 bytes and the remained size for this client is : 1023999592 bytes
+Sat Apr  2 19:58:26 2022
+   --> Ali downloads : ali/../test_file.txt with size : 2534 bytes and the remained size for this client is : 1023997058 bytes
+Sat Apr  2 19:59:08 2022
+   --> Mohsen deletes : ali.
+Sat Apr  2 20:19:05 2022
+   --> Ali loged in.
+Sat Apr  2 20:19:10 2022
+   --> Ali makes directory : ali in location : /.
+Sat Apr  2 20:19:36 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:19:45 2022
+   --> Mohsen deletes : ali.
+Sat Apr  2 20:20:11 2022
+   --> Ali makes directory : ali in location : /.
+Sat Apr  2 20:20:23 2022
+   --> Ali makes directory : test in location : ali.
+Sat Apr  2 20:22:02 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:22:13 2022
+   --> Ali loged in.
+Sat Apr  2 20:22:46 2022
+   --> Ali deletes : test.cpp.
+Sat Apr  2 20:23:59 2022
+   --> Mohsen renames : test_file.txt to : test.txt in location : .
+Sat Apr  2 20:24:14 2022
+   --> Mohsen downloads : test.txt with size : 2534 bytes and the remained size for this client is : 1023997466 bytes
+Sat Apr  2 20:24:27 2022
+   --> Ali downloads : config.json with size : 408 bytes and the remained size for this client is : 1023999592 bytes
+Sat Apr  2 20:24:35 2022
+   --> Ali downloads : test.txt with size : 2534 bytes and the remained size for this client is : 1023997058 bytes
+Sat Apr  2 20:25:00 2022
+   --> Mohsen loged out.
+Sat Apr  2 20:25:05 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:25:22 2022
+   --> Mohsen loged out.
+Sat Apr  2 20:25:37 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:25:52 2022
+   --> Mohsen downloads : test.txt with size : 2534 bytes and the remained size for this client is : 1023994932 bytes
+Sat Apr  2 20:27:06 2022
+   --> Ali loged out.
+Sat Apr  2 20:27:12 2022
+   --> Mohsen loged out.
+Sat Apr  2 20:33:34 2022
+   --> Ali loged in.
+Sat Apr  2 20:33:46 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:33:51 2022
+   --> Ali loged out.
+Sat Apr  2 20:34:07 2022
+   --> Ali loged in.
+Sat Apr  2 20:34:16 2022
+   --> Mohsen loged in.
+Sat Apr  2 20:34:39 2022
+   --> Mohsen deletes : ali.
+Sat Apr  2 20:34:44 2022
+   --> Mohsen loged out.
+Sat Apr  2 20:34:58 2022
+   --> Ali loged out.
