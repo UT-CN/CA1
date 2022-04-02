@@ -577,12 +577,19 @@ int main(int argc, char const *argv[]) {
                         continue;
                     }
                     vector <string> command=seperate_to_vector(buffer);
-                    if(command[0]=="user")
+                    bool valid_command = false;
+                    if(command[0]=="user"){
                         user_command(command,i);
-                    else if(command[0]== "pass")
+                        valid_command = true;
+                    }
+                    else if(command[0]== "pass"){
                         pass_command(command,i);
-                    else if(command[0]=="help")
+                        valid_command = true;
+                    }
+                    else if(command[0]=="help"){
                         help_command(command,i);
+                        valid_command = true;
+                    }
                     Client* client=get_Client(i);
                     if(command[0]!="user" && command[0]!="pass" && !is_loged_in(i)){
                         char message[] = "332: Need account for login.";
@@ -606,15 +613,12 @@ int main(int argc, char const *argv[]) {
                         retr_command(command,client);
                     else if(command[0]=="quit")
                         quit_command(command,client);
-                    /*else{
-                        /////////////////////
-                        cout << "client " << i << ":" << buffer << endl;
-                        ////////////////
-                        if(command.size()!=0){
+                    else{
+                        if(command.size()!=0 && !valid_command){
                             char message[] = "501:Syntax error in parameters or arguments.";
                             send_message(i, message);
                         }
-                    }*/
+                    }
                     memset(buffer, 0, BUFFER_SIZE);
                     command.clear();
                 }
