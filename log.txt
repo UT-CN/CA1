@@ -68,3 +68,11 @@ Sat Apr  2 20:34:44 2022
    --> Mohsen loged out.
 Sat Apr  2 20:34:58 2022
    --> Ali loged out.
+Sat Apr  2 21:08:02 2022
+   --> Ali loged in.
+Sat Apr  2 21:08:33 2022
+   --> Ali makes directory : ali in location : /.
+Sat Apr  2 21:08:49 2022
+   --> Ali deletes : ali.
+Sat Apr  2 21:09:04 2022
+   --> Ali loged out.

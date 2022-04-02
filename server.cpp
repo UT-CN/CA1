@@ -353,6 +353,11 @@ bool check_password(string password, int fd, string username, ofstream& log_file
 
 
 void user_command(vector<string> command,int i){
+    if(command.size() < 2 || command.size() > 2){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(i, message);
+        return;
+    }
     if(check_username(command[1],i)){
         char message[] = "331: User name okay. need password.";
         send_message(i, message);
@@ -364,6 +369,11 @@ void user_command(vector<string> command,int i){
 }
 
 void pass_command(vector<string> command, int i, ofstream& log_file){
+    if(command.size() < 2 || command.size() > 2){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(i, message);
+        return;
+    }
     if(username_storage.count(i)==0){
         char message[] = "503: Bad sequence of commands.";
         send_message(i, message);
@@ -379,6 +389,11 @@ void pass_command(vector<string> command, int i, ofstream& log_file){
 }
 
 void pwd_command(vector<string> command, Client* client){
+    if(command.size() > 1){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
     string str;
     if(client->get_path().size()==0)
         str = "pwd ";
@@ -391,6 +406,11 @@ void pwd_command(vector<string> command, Client* client){
 }
 
 void mkd_command(vector<string> command, Client* client, ofstream& log_file){
+    if(command.size() < 2 || command.size() > 2){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
     string str= client->get_path() +" && mkdir "+ command[1];
     if(client->get_path().size() == 0)
         str="mkdir " + command[1];
@@ -410,6 +430,11 @@ void mkd_command(vector<string> command, Client* client, ofstream& log_file){
 }
 
 void dele_command(vector<string> command, Client* client, ofstream& log_file){
+    if(command.size() < 3 || command.size() > 3 || (command[1] != "-d" && command[1] != "-f")){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
     if(is_permissionFiles(client,command[2])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(),message);
@@ -445,6 +470,11 @@ void dele_command(vector<string> command, Client* client, ofstream& log_file){
 }
 
 void ls_command(vector<string> command,Client* client){
+    if(command.size() > 1){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
     string str= client->get_path() +" && ls";
     if(client->get_path().size()==0)
         str="ls ";
@@ -465,6 +495,11 @@ Client* get_Client(int id){
 void cwd_command(vector<string> command, Client* client){
     if(command.size()==1){
         client->back_to_home();
+        return;
+    }
+    if(command.size() < 2 || command.size() > 2){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
         return;
     }
     if(client->get_path().size()==0 && command[1]==".."){
@@ -491,6 +526,12 @@ void cwd_command(vector<string> command, Client* client){
 }
 
 void rename_command(vector<string> command, Client* client, ofstream& log_file){
+    if(command.size() < 3 || command.size() > 3){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+    
     if(is_permissionFiles(client,command[1])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
@@ -526,6 +567,12 @@ void rename_command(vector<string> command, Client* client, ofstream& log_file){
 }
 
 void help_command(vector<string> command, int i){
+    if(command.size() > 1){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(i, message);
+        return;
+    }
+
     char message[] = "user <Your username> : To login.\n"
                      "pass <Your password> : Your acount needs password to loged in.\n"
                      "pwd : Shows your directory path.\n"
@@ -548,6 +595,12 @@ bool is_loged_in(int fd){
 }
 
 void quit_command(vector<string> command, Client* client, ofstream& log_file, int fd){
+    if(command.size() > 1){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+    
     client->log_out();
     username_storage[fd] = "";
     char message[] = "221: Successful Quit.";
@@ -560,6 +613,12 @@ void quit_command(vector<string> command, Client* client, ofstream& log_file, in
 }
 
 void retr_command(vector<string> command, Client* client, ofstream& log_file){
+    if(command.size() < 2 || command.size() > 2){
+        char message[] = "501:Syntax error in parameters or arguments.";
+        send_message(client->get_fd_id(), message);
+        return;
+    }
+    
     if(is_permissionFiles(client,command[1])){
         char message[] = "550: File unavailable.";
         send_message(client->get_fd_id(), message);
