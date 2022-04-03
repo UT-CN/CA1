@@ -366,6 +366,8 @@ Client* get_Client(int id){
 void cwd_command(vector<string> command, Client* client){
     if(command.size()==1){
         client->back_to_home();
+        char message[] = "250: Successful change.";
+        send_message(client->get_fd_id(), message);
         return;
     }
     if(command.size() < 2 || command.size() > 2){
